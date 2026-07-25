@@ -8,6 +8,7 @@ license = "MIT"
 readme = "README.md"
 homepage = "https://github.com/thanos/apo"
 repository = "https://github.com/thanos/apo"
+authors = ["Thanos Vassilakis"]
 documentation = "https://docs.rs/apo"
 keywords = ["engineering", "hygiene", "repository", "evidence", "cli"]
 categories = ["command-line-utilities", "development-tools"]
