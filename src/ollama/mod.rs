@@ -362,10 +362,201 @@ fn truncate(s: &str, max: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::{Read, Write};
+    use std::net::TcpListener;
+    use std::sync::{Mutex, OnceLock};
+    use std::thread;
+    use std::time::Duration;
+
+    fn mock_lock() -> std::sync::MutexGuard<'static, ()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+    }
 
     #[test]
     fn strips_fences() {
         let raw = "```json\n{\"a\":1}\n```";
         assert!(strip_json_fences(raw).contains('a'));
+        assert_eq!(strip_json_fences("```\n{}\n```").trim(), "{}");
+        assert_eq!(strip_json_fences("  plain  "), "plain");
+    }
+
+    #[test]
+    fn truncate_short_and_long() {
+        assert_eq!(truncate("hi", 10), "hi");
+        let long = "abcdefghij";
+        assert_eq!(truncate(long, 5), "abcde…");
+    }
+
+    #[test]
+    fn client_new_trims_trailing_slash() {
+        let c = OllamaClient::new("http://127.0.0.1:11434/", "llama3.2");
+        assert_eq!(c.base_url, "http://127.0.0.1:11434");
+        assert_eq!(c.model, "llama3.2");
+    }
+
+    #[test]
+    fn enrichment_disabled_builder() {
+        let e = OllamaEnrichment::disabled("offline");
+        assert!(!e.enabled);
+        assert_eq!(e.notes, vec!["offline".to_string()]);
+        assert!(e.classifications.is_empty());
+    }
+
+    fn http_ok(body: &str) -> Vec<u8> {
+        let body = body.as_bytes();
+        let mut out = format!(
+            "HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n",
+            body.len()
+        )
+        .into_bytes();
+        out.extend_from_slice(body);
+        out
+    }
+
+    fn ollama_generate_response(payload: &str) -> Vec<u8> {
+        http_ok(&serde_json::json!({ "response": payload }).to_string())
+    }
+
+    fn ollama_tags(models: &[&str]) -> Vec<u8> {
+        let models: Vec<_> = models
+            .iter()
+            .map(|name| serde_json::json!({ "name": name }))
+            .collect();
+        http_ok(&serde_json::json!({ "models": models }).to_string())
+    }
+
+    fn spawn_scripted_server(responses: Vec<Vec<u8>>) -> (String, thread::JoinHandle<()>) {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
+        let addr = listener.local_addr().expect("addr");
+        let (ready_tx, ready_rx) = std::sync::mpsc::channel();
+        let handle = thread::spawn(move || {
+            let _ = ready_tx.send(());
+            for resp in responses {
+                let Ok((mut stream, _)) = listener.accept() else {
+                    break;
+                };
+                let mut buf = [0u8; 8192];
+                let _ = stream.read(&mut buf);
+                let _ = stream.write_all(&resp);
+                let _ = stream.flush();
+            }
+        });
+        ready_rx
+            .recv_timeout(Duration::from_secs(2))
+            .expect("server ready");
+        (format!("http://{addr}"), handle)
+    }
+
+    #[test]
+    fn healthcheck_reports_model_availability() {
+        let _g = mock_lock();
+        let (url, join) = spawn_scripted_server(vec![ollama_tags(&["llama3.2:latest", "mistral"])]);
+        let client = OllamaClient::new(&url, "llama3.2");
+        let status = client.healthcheck().expect("health");
+        assert!(status.reachable);
+        assert!(status.model_available);
+        assert!(
+            status
+                .available_models
+                .iter()
+                .any(|m| m.contains("mistral"))
+        );
+        let _ = join.join();
+    }
+
+    #[test]
+    fn healthcheck_unreachable() {
+        let client = OllamaClient::new("http://127.0.0.1:9", "x");
+        assert!(client.healthcheck().is_err());
+    }
+
+    #[test]
+    fn generate_returns_model_text() {
+        let _g = mock_lock();
+        let (url, join) = spawn_scripted_server(vec![ollama_generate_response(
+            r#"{"summary":"ok","evidence_paths":["docs/a.md"]}"#,
+        )]);
+        let client = OllamaClient::new(&url, "m");
+        let text = client.generate("sys", "prompt").expect("generate");
+        assert!(text.contains("summary"));
+        let _ = join.join();
+    }
+
+    #[test]
+    fn generate_json_strips_fences_and_parses() {
+        let _g = mock_lock();
+        let (url, join) = spawn_scripted_server(vec![ollama_generate_response(
+            "```json\n{\"summary\":\"arch\",\"evidence_paths\":[]}\n```",
+        )]);
+        let client = OllamaClient::new(&url, "m");
+        let summary: GroundedSummary = client
+            .generate_json("sys", "prompt")
+            .expect("generate_json");
+        assert_eq!(summary.summary, "arch");
+        let _ = join.join();
+    }
+
+    #[test]
+    fn enrich_falls_back_when_model_missing() {
+        let _g = mock_lock();
+        let (url, join) = spawn_scripted_server(vec![ollama_tags(&["other"])]);
+        let client = OllamaClient::new(&url, "missing-model");
+        let out = OllamaEnrichment::enrich(&client, &["docs/a.md".into()], &[], "summary");
+        assert!(!out.enabled);
+        assert!(out.notes.iter().any(|n| n.contains("not found")));
+        let _ = join.join();
+    }
+
+    #[test]
+    fn enrich_runs_against_mock_ollama() {
+        let _g = mock_lock();
+        let responses = vec![
+            ollama_tags(&["test:latest"]),
+            ollama_generate_response(
+                r#"{"items":[{"path":"docs/ARCHITECTURE.md","kind":"architecture","rationale":"a"}]}"#,
+            ),
+            ollama_generate_response(
+                r#"{"summary":"layered","evidence_paths":["docs/ARCHITECTURE.md"]}"#,
+            ),
+            ollama_generate_response(
+                r#"{"links":[{"from":"docs/ARCHITECTURE.md","to":"src/lib.rs","rationale":"entry"}]}"#,
+            ),
+            ollama_generate_response(r#"{"summary":"healthy","evidence_paths":[]}"#),
+        ];
+        let (url, join) = spawn_scripted_server(responses);
+        let client = OllamaClient::new(&url, "test");
+        let docs = vec!["docs/ARCHITECTURE.md".into()];
+        let code = vec!["src/lib.rs".into()];
+        let out = OllamaEnrichment::enrich(&client, &docs, &code, "hygiene ok");
+        assert!(
+            out.enabled,
+            "expected enabled enrichment, notes={:?}",
+            out.notes
+        );
+        assert_eq!(out.model.as_deref(), Some("test"));
+        assert!(
+            !out.classifications.is_empty(),
+            "classifications empty; notes={:?}",
+            out.notes
+        );
+        assert!(
+            out.architecture_summary.is_some(),
+            "architecture missing; notes={:?}",
+            out.notes
+        );
+        assert!(
+            !out.suggested_links.is_empty(),
+            "links empty; notes={:?}",
+            out.notes
+        );
+        assert!(
+            out.executive_narrative.is_some(),
+            "narrative missing; notes={:?}",
+            out.notes
+        );
+        let _ = join.join();
     }
 }

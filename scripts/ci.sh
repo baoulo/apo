@@ -16,9 +16,16 @@ run cargo fmt --all -- --check
 run cargo clippy --all-targets --all-features -- -D warnings
 run cargo doc --no-deps --document-private-items
 run cargo test --all-targets
-run cargo llvm-cov --all-features --lcov --output-path lcov.info \
+
+echo ""
+echo "==> cargo llvm-cov (CI gate: ≥80% lines; fails locally the same way)"
+if ! cargo llvm-cov --all-features --lcov --output-path lcov.info \
   --ignore-filename-regex 'src/main\.rs' \
-  --fail-under-lines 80
+  --fail-under-lines 80; then
+  echo "error: line coverage is below 80% — fix tests before pushing (CI Coverage job will fail)." >&2
+  exit 1
+fi
+
 run cargo deny check
 
 if command -v gitleaks >/dev/null 2>&1; then

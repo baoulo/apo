@@ -50,3 +50,56 @@ impl ApoProjectConfig {
         toml::from_str(&text).ok()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    #[test]
+    fn maps_known_and_unknown_rules() {
+        let ok = ToolingOverlay {
+            id: "rust.docs".into(),
+            maps_to: "documentation.doc_tooling".into(),
+            configs: vec![],
+            ci_commands: vec!["cargo doc".into()],
+        };
+        assert_eq!(ok.maps_to_rule(), Some(MapsTo::DocTooling));
+
+        let bad = ToolingOverlay {
+            id: "x".into(),
+            maps_to: "not.a.rule".into(),
+            configs: vec![],
+            ci_commands: vec![],
+        };
+        assert!(bad.maps_to_rule().is_none());
+    }
+
+    #[test]
+    fn load_from_root_reads_overlay() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(
+            dir.path().join(".apo.toml"),
+            r#"
+[ecosystem]
+languages = ["rust"]
+
+[[tooling]]
+id = "custom.docs"
+maps_to = "documentation.doc_tooling"
+ci_commands = ["cargo doc"]
+"#,
+        )
+        .unwrap();
+        let cfg = ApoProjectConfig::load_from_root(dir.path()).expect("load");
+        assert_eq!(cfg.ecosystem.languages, vec!["rust"]);
+        assert_eq!(cfg.tooling.len(), 1);
+        assert_eq!(cfg.tooling[0].id, "custom.docs");
+    }
+
+    #[test]
+    fn load_from_root_missing_is_none() {
+        let dir = tempfile::tempdir().unwrap();
+        assert!(ApoProjectConfig::load_from_root(dir.path()).is_none());
+    }
+}
