@@ -3,8 +3,11 @@
 use std::process::ExitCode;
 
 use apo::cli::Cli;
-use apo::report::{json_to_string, render_llm_prompt};
-use apo::{OutputFormat, analyze_and_write};
+use apo::config::AnalyzerMode;
+use apo::report::{
+    evidence_json_to_string, json_to_string, render_evidence_llm_prompt, render_llm_prompt,
+};
+use apo::{OutputFormat, analyze_and_write, evidence_and_write};
 use clap::Parser;
 use tracing_subscriber::EnvFilter;
 
@@ -26,37 +29,68 @@ fn main() -> ExitCode {
         }
     };
 
-    match analyze_and_write(&config) {
-        Ok((report, written)) => {
-            if config.prompt_stdout {
-                print!("{}", render_llm_prompt(&report));
-            } else if !config.prompt_only {
-                match config.format {
-                    OutputFormat::Json => {
-                        if let Ok(s) = json_to_string(&report) {
-                            println!("{s}");
+    match config.mode {
+        AnalyzerMode::Hygiene => match analyze_and_write(&config) {
+            Ok((report, written)) => {
+                if config.prompt_stdout {
+                    print!("{}", render_llm_prompt(&report));
+                } else if !config.prompt_only {
+                    match config.format {
+                        OutputFormat::Json => {
+                            if let Ok(s) = json_to_string(&report) {
+                                println!("{s}");
+                            }
+                        }
+                        OutputFormat::Markdown | OutputFormat::Both => {
+                            if let Some(score) = report.policy.overall_score {
+                                eprintln!(
+                                    "apo: repository hygiene score {:.1}/100 ({} findings, {} gaps)",
+                                    score,
+                                    report.findings.len(),
+                                    report.missing_controls.len()
+                                );
+                            }
                         }
                     }
-                    OutputFormat::Markdown | OutputFormat::Both => {
-                        if let Some(score) = report.policy.overall_score {
+                }
+                for path in &written {
+                    eprintln!("wrote {}", path.display());
+                }
+                ExitCode::SUCCESS
+            }
+            Err(e) => {
+                eprintln!("error: {e}");
+                ExitCode::FAILURE
+            }
+        },
+        AnalyzerMode::Evidence => match evidence_and_write(&config) {
+            Ok((report, written)) => {
+                if config.prompt_stdout {
+                    print!("{}", render_evidence_llm_prompt(&report));
+                } else if !config.prompt_only {
+                    match config.format {
+                        OutputFormat::Json => {
+                            if let Ok(s) = evidence_json_to_string(&report) {
+                                println!("{s}");
+                            }
+                        }
+                        OutputFormat::Markdown | OutputFormat::Both => {
                             eprintln!(
-                                "apo: repository hygiene score {:.1}/100 ({} findings, {} gaps)",
-                                score,
-                                report.findings.len(),
-                                report.missing_controls.len()
+                                "apo: knowledge maturity {:.1}/100 · AI maturity {:.1}/100",
+                                report.knowledge_maturity, report.ai_maturity
                             );
                         }
                     }
                 }
+                for path in &written {
+                    eprintln!("wrote {}", path.display());
+                }
+                ExitCode::SUCCESS
             }
-            for path in &written {
-                eprintln!("wrote {}", path.display());
+            Err(e) => {
+                eprintln!("error: {e}");
+                ExitCode::FAILURE
             }
-            ExitCode::SUCCESS
-        }
-        Err(e) => {
-            eprintln!("error: {e}");
-            ExitCode::FAILURE
-        }
+        },
     }
 }

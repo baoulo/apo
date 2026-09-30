@@ -1,9 +1,9 @@
 [package]
 name = "apo"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 rust-version = "1.85"
-description = "APO — Engineering Evidence Platform. Repository Hygiene analyzer."
+description = "APO — Engineering Evidence Platform. Repository hygiene, knowledge, and AI evidence."
 license = "MIT"
 readme = "README.md"
 homepage = "https://github.com/thanos/apo"
@@ -17,6 +17,12 @@ exclude = [
     "/*-repository-hygiene.md",
     "/*-repository-hygiene.json",
     "/*-repository-hygiene-prompt.md",
+    "/*-repository-evidence.md",
+    "/*-repository-evidence.json",
+    "/*-repository-evidence-prompt.md",
+    "/*-badge.svg",
+    "/*-repository-hygiene-badge.svg",
+    "/*-repository-evidence-badge.svg",
 ]
 
 [dependencies]
@@ -39,6 +45,8 @@ chrono = { version = "0.4", default-features = false, features = [
     "serde",
 ] }
 tempfile = "3"
+ureq = { version = "2", default-features = false, features = ["json"] }
+toml = { version = "0.8", features = ["parse", "display"] }
 
 [dev-dependencies]
 assert_cmd = "2"

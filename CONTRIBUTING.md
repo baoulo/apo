@@ -12,9 +12,17 @@ Requirements:
 ```bash
 git clone https://github.com/thanos/apo.git
 cd apo
+./scripts/ci.sh   # fmt, clippy, test, llvm-cov (≥80%), deny, audit, apo self-analysis
+```
+
+Or run checks individually:
+
+```bash
 cargo test
-cargo clippy --all-targets -- -D warnings
+cargo clippy --all-targets --all-features -- -D warnings
 cargo fmt --all -- --check
+cargo run -- analyze . --badge-output docs/badges/apo-hygiene.svg
+cargo run -- evidence . --badge-output docs/badges/apo-evidence.svg
 ```
 
 ## Project layout
@@ -42,7 +50,7 @@ cargo fmt --all -- --check
 1. Bump version in `Cargo.toml` and add a `CHANGELOG.md` section
 2. Merge to `main`
 3. Ensure the `CARGO_REGISTRY_TOKEN` repository secret is set (crates.io API token)
-4. Tag and push: `git tag v0.1.0 && git push origin v0.1.0`
+4. Tag and push: `git tag v0.2.0 && git push origin v0.2.0`
 5. The Release workflow builds binaries, creates a GitHub Release, and runs `cargo publish`
 
 Manual publish (optional):

@@ -195,7 +195,7 @@ jobs:
     })
     .unwrap();
 
-    assert_eq!(written.len(), 2);
+    assert_eq!(written.len(), 3);
     let prefix = report.artifact_prefix();
     assert!(
         out.join(format!("{prefix}-repository-hygiene.md"))
@@ -203,6 +203,10 @@ jobs:
     );
     assert!(
         out.join(format!("{prefix}-repository-hygiene.json"))
+            .is_file()
+    );
+    assert!(
+        out.join(format!("{prefix}-repository-hygiene-badge.svg"))
             .is_file()
     );
 
@@ -275,10 +279,16 @@ fn analyzes_remote_file_uri() {
     })
     .unwrap();
 
-    assert_eq!(written.len(), 1);
+    assert_eq!(written.len(), 2);
     assert_eq!(report.repository, uri);
     assert_eq!(report.source_uri.as_deref(), Some(uri.as_str()));
     assert!(report.checkout_path.is_some());
+    assert!(written.iter().any(|p| {
+        p.extension().and_then(|e| e.to_str()) == Some("svg")
+            || p.file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| n.ends_with("-badge.svg"))
+    }));
 
     let readme = report
         .findings
@@ -286,4 +296,191 @@ fn analyzes_remote_file_uri() {
         .find(|f| f.rule == "documentation.readme")
         .unwrap();
     assert_eq!(readme.status, apo::evidence::Status::Enforced);
+}
+
+#[test]
+fn elixir_pack_detects_mix_tooling() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    init_repo(root);
+
+    write(
+        root,
+        "mix.exs",
+        r#"
+defmodule Demo.MixProject do
+  use Mix.Project
+  def project, do: [app: :demo, version: "0.1.0", aliases: aliases()]
+  defp aliases do
+    [
+      check: [
+        "format --check-formatted",
+        "compile --warnings-as-errors",
+        "credo --strict",
+        "dialyzer",
+        "hex.audit",
+        "sobelow --config",
+        "doctor --full",
+        "docs --warnings-as-errors"
+      ]
+    ]
+  end
+end
+"#,
+    );
+    write(
+        root,
+        ".formatter.exs",
+        "[\n  inputs: [\"{mix,.formatter}.exs\", \"{config,lib,test}/**/*.{ex,exs}\"]\n]\n",
+    );
+    write(root, ".credo.exs", "%{configs: [%{name: \"default\"}]}\n");
+    write(
+        root,
+        ".github/workflows/ci.yml",
+        "name: ci\non: push\njobs:\n  check:\n    runs-on: ubuntu-latest\n    steps:\n      - run: mix format --check-formatted\n      - run: mix credo --strict\n      - run: mix hex.audit\n      - run: mix dialyzer\n      - run: mix sobelow --config\n      - run: mix doctor --full\n      - run: mix docs --warnings-as-errors\n      - run: mix compile --warnings-as-errors\n",
+    );
+    write(root, "README.md", "# Demo\n");
+    commit_all(root, "feat: elixir hygiene fixtures");
+
+    let report = analyze(&Config {
+        target: root.display().to_string(),
+        format: OutputFormat::Json,
+        commit_sample_limit: 20,
+        ..Config::default()
+    })
+    .unwrap();
+
+    let packs = apo::packs::for_repo(&apo::discovery::discover(root, 20).unwrap());
+    assert!(
+        packs.active_packs.iter().any(|p| p == "elixir"),
+        "expected elixir pack, got {:?}",
+        packs.active_packs
+    );
+
+    let fmt = report
+        .findings
+        .iter()
+        .find(|f| f.rule == "local_development.formatter")
+        .unwrap();
+    assert!(
+        matches!(
+            fmt.status,
+            apo::evidence::Status::Present | apo::evidence::Status::Enforced
+        ),
+        "formatter {:?}",
+        fmt.status
+    );
+
+    let lint = report
+        .findings
+        .iter()
+        .find(|f| f.rule == "local_development.linter")
+        .unwrap();
+    assert!(
+        matches!(
+            lint.status,
+            apo::evidence::Status::Present | apo::evidence::Status::Enforced
+        ),
+        "linter {:?}",
+        lint.status
+    );
+
+    let deps = report
+        .findings
+        .iter()
+        .find(|f| f.rule == "security.dependency_scanning")
+        .unwrap();
+    assert_eq!(deps.status, apo::evidence::Status::Enforced);
+
+    let docs = report
+        .findings
+        .iter()
+        .find(|f| f.rule == "documentation.doc_tooling")
+        .unwrap();
+    assert_eq!(docs.status, apo::evidence::Status::Enforced);
+}
+
+#[test]
+fn evidence_analyzer_detects_knowledge_and_ai() {
+    use apo::config::AnalyzerMode;
+    use apo::{analyze_evidence, evidence_and_write};
+
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    init_repo(root);
+
+    write(
+        root,
+        "README.md",
+        "# Demo\n\nSee [Architecture](docs/ARCHITECTURE.md).\n",
+    );
+    write(
+        root,
+        "docs/ARCHITECTURE.md",
+        "# Architecture\n\nCore modules.\n",
+    );
+    write(
+        root,
+        "docs/adr/0001-use-adrs.md",
+        "# ADR 0001\n\n## Status\nAccepted\n",
+    );
+    write(root, "docs/runbooks/deploy.md", "# Deploy\n\nSteps.\n");
+    write(root, "CODEOWNERS", "* @owners\n");
+    write(root, "prompts/review.md", "# Review prompt\nv1\n");
+    write(root, "AGENTS.md", "# Agents\nRoles for coding agents.\n");
+    write(
+        root,
+        "docs/ai-governance.md",
+        "# AI governance\n\nHuman review required for merges.\n",
+    );
+    write(
+        root,
+        ".github/workflows/ai-review.yml",
+        "name: ai-review\non: pull_request\njobs:\n  review:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo review\n",
+    );
+    write(root, "src/lib.rs", "pub fn hello() {}\n");
+    commit_all(root, "feat: knowledge and ai evidence fixtures");
+
+    let report = analyze_evidence(&Config {
+        target: root.display().to_string(),
+        format: OutputFormat::Json,
+        mode: AnalyzerMode::Evidence,
+        ..Config::default()
+    })
+    .unwrap();
+
+    assert_eq!(report.analyzer, "repository-evidence");
+    assert!(!report.knowledge.artifacts.is_empty());
+    assert!(report.knowledge.maturity_score > 0.0);
+    assert!(report.ai.prompt_count >= 1);
+    assert!(report.ai.governance_present);
+    assert!(!report.executive_summary.is_empty());
+
+    let out = tempdir().unwrap();
+    let (written_report, paths) = evidence_and_write(&Config {
+        target: root.display().to_string(),
+        format: OutputFormat::Both,
+        output: Some(out.path().to_path_buf()),
+        mode: AnalyzerMode::Evidence,
+        ..Config::default()
+    })
+    .unwrap();
+
+    assert_eq!(paths.len(), 3);
+    assert!(paths.iter().any(|p| {
+        p.file_name()
+            .and_then(|n| n.to_str())
+            .is_some_and(|n| n.ends_with("-repository-evidence.md"))
+    }));
+    assert!(paths.iter().any(|p| {
+        p.file_name()
+            .and_then(|n| n.to_str())
+            .is_some_and(|n| n.ends_with("-repository-evidence.json"))
+    }));
+    assert!(paths.iter().any(|p| {
+        p.file_name()
+            .and_then(|n| n.to_str())
+            .is_some_and(|n| n.ends_with("-repository-evidence-badge.svg"))
+    }));
+    assert!(written_report.knowledge_maturity >= report.knowledge_maturity - 0.1);
 }

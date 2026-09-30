@@ -1,27 +1,32 @@
 //! APO — Engineering Evidence Platform.
 //!
-//! Repository Hygiene is the first analyzer: it collects observational evidence
-//! about engineering controls in a local Git repository and derives policy scores.
+//! - **v0.1** Repository Hygiene analyzer
+//! - **v0.2** Knowledge Evidence + AI Evidence analyzers (optional Ollama enrichment);
+//!   observational language/web packs and `.apo.toml` tooling overlays
 
 #![forbid(unsafe_code)]
 
+pub mod ai_evidence;
 pub mod cli;
 pub mod config;
 pub mod discovery;
 pub mod error;
 pub mod evidence;
 pub mod git;
+pub mod knowledge;
+pub mod ollama;
+pub mod packs;
 pub mod policy;
 pub mod report;
 pub mod rules;
 pub mod source;
 
-pub use config::{Config, OutputFormat};
+pub use config::{AnalyzerMode, Config, OutputFormat};
 pub use error::{Error, Result};
-pub use report::Report;
+pub use report::{EvidenceReport, Report};
 pub use source::Workspace;
 
-use tracing::info;
+use tracing::{info, warn};
 
 /// Analyze a repository and produce a hygiene report.
 ///
@@ -33,9 +38,6 @@ pub fn analyze(config: &Config) -> Result<Report> {
 }
 
 /// Analyze and retain the workspace until the caller drops it.
-///
-/// Useful when the caller still needs the checkout path (e.g. writing reports
-/// beside a local repo, or inspecting a remote clone before cleanup).
 pub fn analyze_with_workspace(config: &Config) -> Result<(Report, Workspace)> {
     info!(target = %config.target, "resolving repository");
     let workspace = source::resolve(&config.target, config.commit_sample_limit)?;
@@ -58,38 +60,82 @@ pub fn analyze_with_workspace(config: &Config) -> Result<(Report, Workspace)> {
     Ok((report, workspace))
 }
 
+/// Analyze knowledge + AI evidence (v0.2).
+pub fn analyze_evidence(config: &Config) -> Result<EvidenceReport> {
+    let (report, _workspace) = analyze_evidence_with_workspace(config)?;
+    Ok(report)
+}
+
+/// Analyze evidence and retain the workspace until drop.
+pub fn analyze_evidence_with_workspace(config: &Config) -> Result<(EvidenceReport, Workspace)> {
+    info!(target = %config.target, "resolving repository for evidence");
+    let workspace = source::resolve(&config.target, config.commit_sample_limit)?;
+    let ctx = discovery::discover(&workspace.path, config.commit_sample_limit)?;
+
+    info!(files = ctx.inventory.len(), "collecting knowledge evidence");
+    let knowledge = knowledge::analyze(&ctx);
+
+    info!("collecting AI evidence");
+    let ai = ai_evidence::analyze(&ctx);
+
+    let ollama_enrichment = if config.ollama {
+        info!(url = %config.ollama_url, model = %config.ollama_model, "ollama enrichment enabled");
+        let client = ollama::OllamaClient::new(&config.ollama_url, &config.ollama_model);
+        let doc_paths: Vec<_> = knowledge.artifacts.iter().map(|a| a.path.clone()).collect();
+        let code_paths: Vec<_> = ctx
+            .inventory
+            .iter()
+            .filter(|e| {
+                let l = e.relative.to_ascii_lowercase();
+                l.ends_with(".rs")
+                    || l.ends_with(".go")
+                    || l.ends_with(".py")
+                    || l.ends_with(".ts")
+                    || l.ends_with(".js")
+                    || l.ends_with(".ex")
+            })
+            .take(40)
+            .map(|e| e.relative.clone())
+            .collect();
+        let findings_summary = format!(
+            "Knowledge maturity {:.0}; AI maturity {:.0}; missing kinds: {}; AI governance: {}; prompts: {}.",
+            knowledge.maturity_score,
+            ai.maturity_score,
+            knowledge
+                .kinds_missing
+                .iter()
+                .map(|k| k.as_str())
+                .collect::<Vec<_>>()
+                .join(", "),
+            ai.governance_present,
+            ai.prompt_count
+        );
+        Some(ollama::OllamaEnrichment::enrich(
+            &client,
+            &doc_paths,
+            &code_paths,
+            &findings_summary,
+        ))
+    } else {
+        None
+    };
+
+    if let Some(ref o) = ollama_enrichment {
+        if !o.enabled {
+            warn!(notes = ?o.notes, "ollama enrichment disabled/fallback");
+        }
+    }
+
+    let report = EvidenceReport::build(&ctx, &workspace, knowledge, ai, ollama_enrichment);
+    Ok((report, workspace))
+}
+
 /// Analyze and write reports (and optional LLM prompt) to disk.
-///
-/// Returns the report and written paths.
 pub fn analyze_and_write(config: &Config) -> Result<(Report, Vec<std::path::PathBuf>)> {
     let (report, workspace) = analyze_with_workspace(config)?;
 
     let cwd = std::env::current_dir()?;
-    let default_dir = config
-        .output
-        .as_ref()
-        .and_then(|p| {
-            if p.is_dir() {
-                Some(p.as_path())
-            } else {
-                p.parent()
-            }
-        })
-        .unwrap_or(if workspace.is_remote() {
-            cwd.as_path()
-        } else {
-            workspace.path.as_path()
-        });
-
-    let write_dir = if config.output.is_none() {
-        if workspace.is_remote() {
-            cwd.as_path()
-        } else {
-            workspace.path.as_path()
-        }
-    } else {
-        default_dir
-    };
+    let write_dir = resolve_write_dir(config, &workspace, &cwd);
 
     let mut written = Vec::new();
 
@@ -102,13 +148,91 @@ pub fn analyze_and_write(config: &Config) -> Result<(Report, Vec<std::path::Path
         )?);
     }
 
+    if config.badge && !config.prompt_only {
+        let badge_path = report::write_hygiene_badge(
+            &report,
+            config.badge_output.as_deref(),
+            config.output.as_deref(),
+            write_dir,
+        )?;
+        written.push(badge_path);
+    }
+
     if config.llm_prompt {
         let prompt_path = report::resolve_prompt_path(&report, config.output.as_deref(), write_dir);
         report::write_llm_prompt(&report, &prompt_path)?;
         written.push(prompt_path);
     }
 
-    // Keep workspace alive until writes finish (remote temp clone).
     drop(workspace);
     Ok((report, written))
+}
+
+/// Run the evidence analyzer and write `{repo}-repository-evidence.*` artifacts.
+pub fn evidence_and_write(config: &Config) -> Result<(EvidenceReport, Vec<std::path::PathBuf>)> {
+    let (report, workspace) = analyze_evidence_with_workspace(config)?;
+    let cwd = std::env::current_dir()?;
+    let write_dir = resolve_write_dir(config, &workspace, &cwd);
+
+    let mut written = Vec::new();
+    if !config.prompt_only {
+        written.extend(report::write_evidence_report(
+            &report,
+            config.format,
+            config.output.as_deref(),
+            write_dir,
+        )?);
+    }
+
+    if config.badge && !config.prompt_only {
+        let badge_path = report::write_evidence_badge(
+            &report,
+            config.badge_output.as_deref(),
+            config.output.as_deref(),
+            write_dir,
+        )?;
+        written.push(badge_path);
+    }
+
+    if config.llm_prompt {
+        let prompt_path =
+            report::resolve_evidence_prompt_path(&report, config.output.as_deref(), write_dir);
+        report::write_evidence_llm_prompt(&report, &prompt_path)?;
+        written.push(prompt_path);
+    }
+
+    drop(workspace);
+    Ok((report, written))
+}
+
+fn resolve_write_dir<'a>(
+    config: &'a Config,
+    workspace: &'a Workspace,
+    cwd: &'a std::path::Path,
+) -> &'a std::path::Path {
+    let default_dir = config
+        .output
+        .as_ref()
+        .and_then(|p| {
+            if p.is_dir() {
+                Some(p.as_path())
+            } else {
+                p.parent()
+            }
+        })
+        .unwrap_or(if workspace.is_remote() {
+            cwd
+        } else {
+            workspace.path.as_path()
+        });
+
+    if config.output.is_none() {
+        if workspace.is_remote() {
+            cwd
+        } else {
+            workspace.path.as_path()
+        }
+    } else {
+        default_dir
+    }
 }

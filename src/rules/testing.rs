@@ -245,38 +245,18 @@ impl Rule for StaticAnalysisCi {
         "testing.static_analysis_ci"
     }
     fn evaluate(&self, ctx: &RepoContext) -> Finding {
-        let items = helpers::ci_mentions(
+        let legacy = helpers::ci_mentions(ctx, &["semgrep", "codeql", "sonar"]);
+        helpers::finding_from_pack_or_legacy(
             ctx,
-            &[
-                "clippy",
-                "eslint",
-                "golangci-lint",
-                "ruff",
-                "flake8",
-                "pylint",
-                "semgrep",
-                "codeql",
-                "sonar",
-                "shellcheck",
-                "rubocop",
-            ],
-        );
-
-        if items.is_empty() {
-            Finding::builder(self.id(), Category::Testing)
-                .status(Status::Missing)
-                .confidence(Confidence::Medium)
-                .summary("No static analysis steps detected in CI workflows.")
-                .remediation("Run linters/static analysis in CI (clippy, eslint, ruff, etc.).")
-                .build()
-        } else {
-            Finding::builder(self.id(), Category::Testing)
-                .status(Status::Enforced)
-                .confidence(Confidence::High)
-                .summary("Static analysis steps detected in CI workflows.")
-                .evidence(items)
-                .build()
-        }
+            self.id(),
+            Category::Testing,
+            crate::packs::MapsTo::StaticAnalysisCi,
+            legacy,
+            "No static analysis steps detected in CI workflows.",
+            "Static analysis tooling configuration detected.",
+            "Static analysis steps detected in CI/scripts.",
+            "Run linters/static analysis in CI (credo, clippy, eslint, sobelow, etc.).",
+        )
     }
 }
 
@@ -286,44 +266,16 @@ impl Rule for TypeCheckingCi {
         "testing.type_checking_ci"
     }
     fn evaluate(&self, ctx: &RepoContext) -> Finding {
-        let signals = ctx.detect_signals();
-        let mut items = helpers::ci_mentions(
+        helpers::finding_from_pack_or_legacy(
             ctx,
-            &[
-                "tsc",
-                "typescript",
-                "mypy",
-                "pyright",
-                "cargo check",
-                "cargo build",
-                "go build",
-                "go vet",
-            ],
-        );
-
-        // Strongly typed ecosystems compiling in CI count as type checking
-        if signals.has_cargo {
-            let cargo_ci = helpers::ci_mentions(ctx, &["cargo"]);
-            items.extend(cargo_ci);
-        }
-
-        items.sort_by(|a, b| a.path.cmp(&b.path));
-        items.dedup();
-
-        if items.is_empty() {
-            Finding::builder(self.id(), Category::Testing)
-                .status(Status::Missing)
-                .confidence(Confidence::Medium)
-                .summary("No type-checking steps detected in CI workflows.")
-                .remediation("Add tsc/mypy/cargo check (or equivalent) to CI.")
-                .build()
-        } else {
-            Finding::builder(self.id(), Category::Testing)
-                .status(Status::Enforced)
-                .confidence(Confidence::High)
-                .summary("Type-checking / compile checks detected in CI workflows.")
-                .evidence(items)
-                .build()
-        }
+            self.id(),
+            Category::Testing,
+            crate::packs::MapsTo::TypeCheckingCi,
+            Vec::new(),
+            "No type-checking steps detected in CI workflows.",
+            "Type-checking configuration detected.",
+            "Type-checking / compile checks detected in CI/scripts.",
+            "Add tsc/mypy/cargo check/mix compile --warnings-as-errors (or equivalent) to CI.",
+        )
     }
 }

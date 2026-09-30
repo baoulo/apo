@@ -8,11 +8,12 @@
 
 **APO** (from Greek *apothiki* — "storehouse") is an **Engineering Evidence Platform**.
 
-This repository ships the first analyzer: **Repository Hygiene**.
+`apo` collects **objective engineering evidence** from a local Git repository or remote Git URI:
 
-`apo` scans a local Git repository (or a remote Git URI) and collects **objective engineering hygiene evidence** — documentation, local development controls, testing gates, security/supply-chain signals, delivery automation, and collaboration practices.
+- **v0.1 — Repository Hygiene** — documentation, local development controls, testing gates, security/supply-chain signals, delivery automation, and collaboration practices
+- **v0.2 — Knowledge + AI Evidence** — knowledge coverage/freshness/ownership, knowledge graph, prompt/MCP/agent artifacts, and AI governance maturity (optional local Ollama enrichment); observational **language/web packs** and `.apo.toml` tooling overlays for fairer multi-ecosystem scoring
 
-Rules emit evidence only. A separate policy layer turns those observations into category and overall scores. APO does not grade “code quality” or run your tests; it reports whether engineering *controls* are observable in the repository.
+Hygiene rules emit evidence only. A separate policy layer turns those observations into category and overall scores. Knowledge and AI analyzers stay deterministic by default; Ollama never invents evidence — it only narrates from analyzer outputs. Language packs observe configs and CI/script text; they do not run toolchains. APO does not grade “code quality” or run your tests.
 
 ## Install
 
@@ -35,7 +36,7 @@ Prebuilt binaries for Linux, macOS, and Windows are attached to [GitHub Releases
 ## Usage
 
 ```bash
-# Local checkout
+# Hygiene (v0.1)
 apo analyze .
 apo analyze . --format json
 apo analyze . --output report.md
@@ -49,6 +50,12 @@ apo analyze git@github.com:thanos/ex_arrow.git --format both
 apo analyze . --llm-prompt
 apo prompt .
 apo prompt https://github.com/thanos/ex_arrow --output ./out
+
+# Knowledge + AI evidence (v0.2)
+apo evidence .
+apo evidence . --format both
+apo evidence . --llm-prompt
+apo evidence . --ollama --ollama-model llama3.2
 ```
 
 Default artifacts:
@@ -56,17 +63,69 @@ Default artifacts:
 - Local targets: written next to the analyzed repository
 - Remote URIs: written to the current working directory
 
-Files:
+Hygiene files:
 
 - `{repo}-repository-hygiene.md`
 - `{repo}-repository-hygiene.json` (when `--format json` or `both`)
 - `{repo}-repository-hygiene-prompt.md` (when `--llm-prompt` or `apo prompt`)
+- `{repo}-repository-hygiene-badge.svg` (default; skip with `--no-badge`)
+
+Evidence files:
+
+- `{repo}-repository-evidence.md`
+- `{repo}-repository-evidence.json` (when `--format json` or `both`)
+- `{repo}-repository-evidence-prompt.md` (when `evidence --llm-prompt`)
+- `{repo}-repository-evidence-badge.svg` (default; skip with `--no-badge`)
 
 `{repo}` is the repository directory name (local) or the remote repo basename (e.g. `ex_arrow` from `https://github.com/thanos/ex_arrow`).
 
+### Badges (enterprise-friendly)
+
+APO writes **self-contained SVG badges** next to reports — no shields.io or other external CDN. That works on **GitHub.com, GitHub Enterprise, GitLab EE**, and other forges when you embed a **relative** path (the forge serves the file with the same auth as the README).
+
+```markdown
+![APO hygiene](docs/badges/apo-hygiene.svg)
+![APO evidence](docs/badges/apo-evidence.svg)
+```
+
+```bash
+apo analyze . --badge-output docs/badges/apo-hygiene.svg
+apo evidence . --badge-output docs/badges/apo-evidence.svg
+# or default names beside the repo / --output directory
+apo analyze .          # writes {repo}-repository-hygiene-badge.svg
+apo evidence . --no-badge
+```
+
+Color bands: ≥80 green, ≥50 yellow, &lt;50 red (`n/a` gray). Hygiene shows overall score; evidence shows knowledge + AI maturity side by side.
+
+Example CI step (GitHub.com or GitHub Enterprise Actions) to refresh a tracked badge:
+
+```yaml
+- name: APO hygiene badge
+  run: |
+    cargo install apo --locked
+    apo analyze . --format json --badge-output docs/badges/apo-hygiene.svg
+    # optional: commit docs/badges/ or upload as a workflow artifact
+```
+
+### Knowledge + AI evidence
+
+`apo evidence` inventories documentation and AI artifacts, builds a knowledge graph (docs ↔ code ↔ tests ↔ ADRs ↔ runbooks), scores knowledge and AI maturity, and lists risks. Everything is offline-capable.
+
+Optional `--ollama` calls a local Ollama HTTP API for semantic classification, architecture summary, doc↔code linking hints, and an executive narrative. Deterministic analyzer data remains the source of truth; if Ollama is unreachable, APO falls back with notes and still writes the report. The client speaks plain HTTP (default `http://127.0.0.1:11434`); HTTPS endpoints are not supported.
+
+```bash
+apo evidence . --format both
+apo evidence . --llm-prompt
+apo evidence . --ollama --ollama-url http://127.0.0.1:11434 --ollama-model llama3.2
+# or: APO_OLLAMA_URL / APO_OLLAMA_MODEL
+```
+
 ### LLM remediation prompt
 
-`apo prompt` / `--llm-prompt` generates a paste-ready instructions file for an LLM coding agent. It includes:
+`apo prompt` / `analyze --llm-prompt` and `evidence --llm-prompt` generate paste-ready instructions for an LLM coding agent.
+
+**Hygiene** (`apo prompt` / `analyze --llm-prompt`):
 
 - Repository identity and current weighted score
 - Rubric priorities
@@ -74,29 +133,63 @@ Files:
 - Enumerated gaps (`Missing` / `Partial` / `Unknown`) with remediations and evidence
 - Constraints and a required changelog deliverable mapping files → APO rule ids
 
+**Evidence** (`evidence --llm-prompt`):
+
+- Knowledge and AI maturity snapshot
+- Present artifacts and satisfied findings (do not redo)
+- Missing knowledge kinds, risks, and broken links
+- Knowledge and AI gap findings with remediations
+- Changelog deliverable mapping files → APO rule ids (`knowledge.*`, `ai.*`)
+
 Example:
 
 ```bash
 apo prompt . > /tmp/fix-hygiene.md   # also writes {repo}-repository-hygiene-prompt.md
+apo prompt . --evidence               # writes {repo}-repository-evidence-prompt.md
+apo evidence . --llm-prompt           # same evidence prompt alongside the report
 # then paste into your LLM agent against the repo checkout
 ```
+
+### Language and web packs (Version 2)
+
+Hygiene rules use **observational language/web packs** so Elixir, SQL, Nim, and other ecosystems are not under-scored relative to Rust/Node. Packs activate from manifests (e.g. `mix.exs`, `go.mod`, `next.config.*`) and contribute config paths + CI/Makefile/`mix` alias needles into existing rule ids.
+
+Optional repo overlay [`.apo.toml`](.apo.toml):
+
+```toml
+[ecosystem]
+languages = ["elixir"]
+web = ["nextjs"]
+
+[[tooling]]
+id = "elixir.extra"
+maps_to = "local_development.linter"
+configs = [".credo.exs"]
+ci_commands = ["mix credo --strict"]
+```
+
+Packs never execute toolchains; they only observe files and scripts. See [ROADMAP.md](ROADMAP.md).
 
 ## Pipeline
 
 ```text
+# Hygiene
 Repository → Discovery → Hygiene Rules → Evidence → Policy/Scoring → Markdown + JSON
+
+# Knowledge + AI
+Repository → Discovery → Knowledge + AI analyzers → (optional Ollama) → Evidence report
 ```
 
 1. **Discovery** — walk the tree (respecting `.gitignore`), index files, detect ecosystem signals (`Cargo.toml`, `package.json`, CI workflows, etc.), and sample recent Git history.
-2. **Rules** — each rule inspects paths, file contents, CI workflow text, and/or commit metadata and emits one finding.
-3. **Policy** — maps finding statuses to numeric weights, averages them per category, then applies the weighted rubric for the overall score.
-4. **Report** — writes Markdown and/or JSON with summary, scores, findings, gaps, and recommendations.
+2. **Rules / analyzers** — hygiene rules emit findings; knowledge and AI analyzers emit structured evidence (artifacts, graph edges, risks, maturity scores).
+3. **Policy** (hygiene) — maps finding statuses to numeric weights, averages them per category, then applies the weighted rubric for the overall score.
+4. **Report** — writes Markdown and/or JSON.
 
 ---
 
 ## What gets measured
 
-APO v0.1 runs **35 rules** across **6 categories**. Every finding includes:
+APO v0.1+ runs **36 rules** across **6 categories** (packs feed several of them). Every finding includes:
 
 | Field | Meaning |
 |-------|---------|
@@ -170,6 +263,7 @@ Both Markdown and JSON include:
 | `documentation.codeowners` | `CODEOWNERS` (root, `.github/`, `docs/`, `.gitlab/`). |
 | `documentation.issue_templates` | `.github/ISSUE_TEMPLATE/` or issue template files. |
 | `documentation.pr_templates` | Pull request template files (e.g. `.github/pull_request_template.md`). |
+| `documentation.doc_tooling` | Docs quality gates from language packs (e.g. `mix doctor`, `mix docs --warnings-as-errors`). |
 
 ### 2. Development Hygiene (15% — Daily developer experience)
 
@@ -237,22 +331,22 @@ For collaboration rules, APO samples up to `commit_sample_limit` commits from `H
 ## Design
 
 - One crate, one binary (`apo`)
-- Rules produce evidence; policy computes scores
+- Rules/analyzers produce evidence; hygiene policy computes scores
 - Detect tools rather than hard-code a single ecosystem
 - Local-clone limits: branch protection and required checks on the hosting platform are reported as `Unknown` unless policy-as-code is checked in
-- No AI required for v0.1
+- Ollama is optional enrichment only; analyzers work fully offline
 
 ## Development
 
 ```bash
-cargo test
-cargo clippy --all-targets -- -D warnings
-cargo fmt --all -- --check
-cargo deny check
-cargo run -- analyze . --format both
+./scripts/ci.sh   # mirrors CI: fmt, clippy, test, llvm-cov (≥80%), deny, audit, apo self-analysis
+cargo run -- analyze . --format both --badge-output docs/badges/apo-hygiene.svg
+cargo run -- evidence . --format both --badge-output docs/badges/apo-evidence.svg
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for PR and release workflow details. See [CHANGELOG.md](CHANGELOG.md) for release notes.
+`./scripts/ci.sh` dogfoods APO on this repo (writes `out/apo-self/` reports and refreshes `docs/badges/`). CI runs the same as the **APO self-analysis** job.
+
+Requires `cargo-llvm-cov` and `cargo-deny` on PATH (same as CI). See [CONTRIBUTING.md](CONTRIBUTING.md) for PR and release workflow details. See [CHANGELOG.md](CHANGELOG.md) for release notes.
 
 ## License
 

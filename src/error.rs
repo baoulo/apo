@@ -30,6 +30,10 @@ pub enum Error {
     /// Configuration failure.
     #[error("config error: {0}")]
     Config(String),
+
+    /// Ollama HTTP / protocol failure.
+    #[error("ollama error: {0}")]
+    Ollama(String),
 }
 
 /// Convenient result alias.

@@ -96,3 +96,164 @@ fn prompt_command_writes_llm_remediation_file() {
     assert!(prompt.contains("Gaps to remediate"));
     assert!(prompt.contains("documentation.license") || prompt.contains("local_development"));
 }
+
+#[test]
+fn evidence_json_writes_report() {
+    let dir = tempdir().unwrap();
+    init_tiny_repo(dir.path());
+    let out = dir.path().join("evidence-out");
+    fs::create_dir_all(&out).unwrap();
+
+    cargo_bin_cmd!("apo")
+        .args([
+            "evidence",
+            dir.path().to_str().unwrap(),
+            "--format",
+            "json",
+            "--output",
+            out.to_str().unwrap(),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("repository-evidence"))
+        .stdout(predicate::str::contains("knowledge"));
+
+    let entries: Vec<_> = fs::read_dir(&out)
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .collect();
+    let json_name = entries
+        .iter()
+        .find(|n| n.ends_with("-repository-evidence.json"))
+        .expect("expected prefixed evidence json");
+    let written = fs::read_to_string(out.join(json_name)).unwrap();
+    assert!(written.contains("\"analyzer\": \"repository-evidence\""));
+    assert!(written.contains("knowledge_maturity"));
+    assert!(written.contains("ai_maturity"));
+}
+
+#[test]
+fn evidence_llm_prompt_writes_file() {
+    let dir = tempdir().unwrap();
+    init_tiny_repo(dir.path());
+    let out = dir.path().join("evidence-prompt-out");
+    fs::create_dir_all(&out).unwrap();
+
+    cargo_bin_cmd!("apo")
+        .args([
+            "evidence",
+            dir.path().to_str().unwrap(),
+            "--llm-prompt",
+            "--output",
+            out.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+
+    let entries: Vec<_> = fs::read_dir(&out)
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .collect();
+    let prompt_name = entries
+        .iter()
+        .find(|n| n.ends_with("-repository-evidence-prompt.md"))
+        .expect("expected prefixed evidence prompt file");
+    let prompt = fs::read_to_string(out.join(prompt_name)).unwrap();
+    assert!(prompt.contains("knowledge & AI evidence remediation"));
+    assert!(prompt.contains("Gaps to remediate") || prompt.contains("gaps to remediate"));
+    assert!(prompt.contains("knowledge.") || prompt.contains("ai."));
+}
+
+#[test]
+fn analyze_writes_hygiene_badge_svg() {
+    let dir = tempdir().unwrap();
+    init_tiny_repo(dir.path());
+    let out = dir.path().join("badge-out");
+    fs::create_dir_all(&out).unwrap();
+
+    cargo_bin_cmd!("apo")
+        .args([
+            "analyze",
+            dir.path().to_str().unwrap(),
+            "--format",
+            "json",
+            "--output",
+            out.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+
+    let entries: Vec<_> = fs::read_dir(&out)
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .collect();
+    let badge_name = entries
+        .iter()
+        .find(|n| n.ends_with("-repository-hygiene-badge.svg"))
+        .expect("expected hygiene badge svg");
+    let svg = fs::read_to_string(out.join(badge_name)).unwrap();
+    assert!(svg.contains("apo hygiene"));
+    assert!(svg.contains("<svg"));
+}
+
+#[test]
+fn evidence_writes_badge_and_no_badge_skips() {
+    let dir = tempdir().unwrap();
+    init_tiny_repo(dir.path());
+    let out = dir.path().join("ev-badge-out");
+    fs::create_dir_all(&out).unwrap();
+
+    cargo_bin_cmd!("apo")
+        .args([
+            "evidence",
+            dir.path().to_str().unwrap(),
+            "--format",
+            "json",
+            "--output",
+            out.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+
+    let entries: Vec<_> = fs::read_dir(&out)
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .collect();
+    let badge_name = entries
+        .iter()
+        .find(|n| n.ends_with("-repository-evidence-badge.svg"))
+        .expect("expected evidence badge svg");
+    let svg = fs::read_to_string(out.join(badge_name)).unwrap();
+    assert!(svg.contains("knowledge"));
+    assert!(svg.contains("ai"));
+
+    let out2 = dir.path().join("ev-nobadge");
+    fs::create_dir_all(&out2).unwrap();
+    cargo_bin_cmd!("apo")
+        .args([
+            "evidence",
+            dir.path().to_str().unwrap(),
+            "--format",
+            "json",
+            "--output",
+            out2.to_str().unwrap(),
+            "--no-badge",
+        ])
+        .assert()
+        .success();
+    let entries2: Vec<_> = fs::read_dir(&out2)
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .collect();
+    assert!(
+        entries2
+            .iter()
+            .all(|n| !n.ends_with("-repository-evidence-badge.svg")),
+        "expected no badge when --no-badge: {entries2:?}"
+    );
+}
