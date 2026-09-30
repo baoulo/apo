@@ -1,0 +1,11 @@
+# Gitleaks configuration for APO
+title = "apo"
+
+[allowlist]
+description = "Test fixtures and generated reports"
+paths = [
+  '''out/''',
+  '''tests/fixtures/''',
+  '''.*-repository-hygiene\.json$''',
+  '''.*-repository-evidence\.json$''',
+]

@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="201" height="20" role="img" aria-label="apo evidence: knowledge 100/100, ai 95/100">
+  <title>apo evidence: knowledge 100/100, ai 95/100</title>
+  <g><title>knowledge: 100/100</title>
+  <linearGradient id="s" x2="0" y2="100%">
+    <stop offset="0" stop-color="#bbb" stop-opacity=".1"/>
+    <stop offset="1" stop-opacity=".1"/>
+  </linearGradient>
+  <clipPath id="r"><rect width="124" height="20" rx="3" fill="#fff"/></clipPath>
+  <g clip-path="url(#r)">
+    <rect width="68" height="20" fill="#555"/>
+    <rect x="68" width="56" height="20" fill="#4c1"/>
+    <rect width="124" height="20" fill="url(#s)"/>
+  </g>
+  <g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" text-rendering="geometricPrecision" font-size="110">
+    <text aria-hidden="true" x="342.5" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="585">knowledge</text>
+    <text x="342.5" y="140" transform="scale(.1)" textLength="585">knowledge</text>
+    <text aria-hidden="true" x="962.5" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="455">100/100</text>
+    <text x="962.5" y="140" transform="scale(.1)" textLength="455">100/100</text>
+  </g></g>
+  <g transform="translate(128,0)"><title>ai: 95/100</title>
+  <linearGradient id="s" x2="0" y2="100%">
+    <stop offset="0" stop-color="#bbb" stop-opacity=".1"/>
+    <stop offset="1" stop-opacity=".1"/>
+  </linearGradient>
+  <clipPath id="r"><rect width="73" height="20" rx="3" fill="#fff"/></clipPath>
+  <g clip-path="url(#r)">
+    <rect width="24" height="20" fill="#555"/>
+    <rect x="24" width="49" height="20" fill="#4c1"/>
+    <rect width="73" height="20" fill="url(#s)"/>
+  </g>
+  <g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" text-rendering="geometricPrecision" font-size="110">
+    <text aria-hidden="true" x="120.0" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="130">ai</text>
+    <text x="120.0" y="140" transform="scale(.1)" textLength="130">ai</text>
+    <text aria-hidden="true" x="485.0" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="390">95/100</text>
+    <text x="485.0" y="140" transform="scale(.1)" textLength="390">95/100</text>
+  </g></g>
+</svg>

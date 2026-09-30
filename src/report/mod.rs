@@ -1,10 +1,26 @@
-//! Report generation (JSON + Markdown + LLM remediation prompt).
+//! Report generation (JSON + Markdown + LLM remediation prompt + evidence).
 
+mod badge;
+mod evidence_prompt;
+mod evidence_report;
+mod evidence_write;
 mod json;
 mod markdown;
 mod names;
 mod prompt;
 
+pub use badge::{
+    evidence_badge_svg, hygiene_badge_svg, resolve_badge_path, score_color, write_evidence_badge,
+    write_hygiene_badge,
+};
+pub use evidence_prompt::{
+    render_evidence_llm_prompt, resolve_evidence_prompt_path, write_evidence_llm_prompt,
+};
+pub use evidence_report::{EvidenceReport, RepositoryEvidenceMeta};
+pub use evidence_write::{
+    evidence_json_to_string, render_evidence_markdown, write_evidence_markdown,
+    write_evidence_report,
+};
 pub use json::{to_string as json_to_string, write_json};
 pub use markdown::write_markdown;
 pub use names::{repo_name_from_label, sanitize_repo_name};

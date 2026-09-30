@@ -274,6 +274,10 @@ pub struct ToolSignals {
     pub has_maven: bool,
     pub has_gradle: bool,
     pub has_dotnet: bool,
+    pub has_mix: bool,
+    pub has_composer: bool,
+    pub has_pubspec: bool,
+    pub has_flake: bool,
     pub ci_workflow_paths: Vec<String>,
     pub pre_commit_config: bool,
     pub editorconfig: bool,
@@ -306,6 +310,10 @@ impl ToolSignals {
             has_dotnet: !inv
                 .find_matching(|p| p.ends_with(".csproj") || p.ends_with(".sln"))
                 .is_empty(),
+            has_mix: inv.has_file("mix.exs"),
+            has_composer: inv.has_file("composer.json"),
+            has_pubspec: inv.has_file("pubspec.yaml"),
+            has_flake: inv.has_file("flake.nix") || inv.has_file("shell.nix"),
             ci_workflow_paths: ci,
             pre_commit_config: inv.has_file(".pre-commit-config.yaml")
                 || inv.has_file(".pre-commit-config.yml"),

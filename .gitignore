@@ -7,7 +7,16 @@ repository-hygiene-prompt.md
 *-repository-hygiene.md
 *-repository-hygiene.json
 *-repository-hygiene-prompt.md
+*-repository-evidence.md
+*-repository-evidence.json
+*-repository-evidence-prompt.md
+*-badge.svg
+*-repository-hygiene-badge.svg
+*-repository-evidence-badge.svg
 /out/
 
 /baoulo/
 .tool-versions
+lcov.info
+*.profraw
+/default.profraw

@@ -20,55 +20,28 @@ impl Rule for DependencyScanning {
         "security.dependency_scanning"
     }
     fn evaluate(&self, ctx: &RepoContext) -> Finding {
-        let mut hits =
-            helpers::find_configs(ctx, &["deny.toml", ".snyk", "nancy.toml", "audit.toml"]);
-        let mut items = helpers::ci_mentions(
+        let mut legacy = helpers::ci_mentions(
             ctx,
-            &[
-                "cargo audit",
-                "cargo deny",
-                "npm audit",
-                "pnpm audit",
-                "yarn audit",
-                "pip-audit",
-                "safety",
-                "snyk",
-                "dependabot",
-                "osv-scanner",
-                "govulncheck",
-                "nancy",
-                "trivy",
-                "grype",
-            ],
+            &["snyk", "dependabot", "osv-scanner", "trivy", "grype"],
         );
-        for h in hits.drain(..) {
-            items.push(EvidenceItem::path(h));
-        }
-
-        // GitHub Dependabot security updates often live with dependency updates —
-        // still count scanning intent if code scanning workflows exist
         let codeql = ctx
             .inventory
             .find_path_contains("codeql")
             .into_iter()
             .map(|e| EvidenceItem::path(e.relative.clone()));
-        items.extend(codeql);
+        legacy.extend(codeql);
 
-        if items.is_empty() {
-            Finding::builder(self.id(), Category::Security)
-                .status(Status::Missing)
-                .confidence(Confidence::Medium)
-                .summary("No dependency scanning configuration detected.")
-                .remediation("Add cargo audit / npm audit / snyk / osv-scanner (or similar) in CI.")
-                .build()
-        } else {
-            Finding::builder(self.id(), Category::Security)
-                .status(Status::Enforced)
-                .confidence(Confidence::High)
-                .summary("Dependency scanning signals detected.")
-                .evidence(items)
-                .build()
-        }
+        helpers::finding_from_pack_or_legacy(
+            ctx,
+            self.id(),
+            Category::Security,
+            crate::packs::MapsTo::DependencyScanning,
+            legacy,
+            "No dependency scanning configuration detected.",
+            "Dependency scanning configuration detected.",
+            "Dependency scanning signals detected.",
+            "Add dependency auditing in CI (e.g. mix hex.audit, cargo audit, npm audit, osv-scanner).",
+        )
     }
 }
 

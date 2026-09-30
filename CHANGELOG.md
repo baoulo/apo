@@ -5,6 +5,49 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Repository moved to the [baoulo](https://github.com/baoulo/apo) GitHub org; crates.io publisher remains [`thanos`](https://crates.io/users/thanos)
+
+### Added
+
+- Multi-channel install packaging via [sastri](https://crates.io/crates/sastri) (`Sastri.toml`): `scripts/install.sh`, Homebrew / Scoop / asdf / mise under `packaging/`, and `.github/actions/setup-apo`
+- Rust pack `docs` tooling needle (`cargo doc` → `documentation.doc_tooling`)
+- Repository hygiene/knowledge/AI dogfood artifacts: architecture, ADRs, runbooks, glossary, API/design docs, CODEOWNERS, PR/issue templates, settings-as-code, editorconfig, pre-commit, gitleaks, commitlint, AGENTS.md, versioned `prompts/`, `Makefile` / `scripts/setup.sh`
+- CI jobs for `cargo doc` and gitleaks secret scanning
+- Narrative write-up: [Eating Our Own Dog Food](docs/eating-our-own-dog-food.md)
+
+## [0.2.0] - 2026-07-20
+
+Knowledge Evidence and AI Evidence analyzers, plus observational language/web packs for fairer multi-ecosystem hygiene scoring.
+
+### Added
+
+- `apo evidence` command for Knowledge + AI evidence (offline by default)
+- Knowledge analyzer: README/ADRs/architecture/design/runbooks/API docs/diagrams/onboarding/glossaries/prompts, coverage & freshness, ownership signals, broken links, knowledge graph
+- AI analyzer: prompt libraries/templates, MCP configs, agent definitions, AI governance, review workflows, maturity scoring
+- Optional local Ollama HTTP enrichment (`--ollama`, `--ollama-url`, `--ollama-model` / `APO_OLLAMA_*`) for narrative only — never invents evidence
+- `{repo}-repository-evidence.md` / `.json` reports with maturity scores, risks, and executive summary
+- `evidence --llm-prompt` / `apo prompt --evidence` write `{repo}-repository-evidence-prompt.md`
+- Language/web **pack engine** with 30+ observational packs (Elixir Mix reference, Nim, SQL, web frameworks, …)
+- `.apo.toml` `[[tooling]]` overlays; new rule `documentation.doc_tooling`
+- [`scripts/ci.sh`](scripts/ci.sh) local CI mirror; [`ROADMAP.md`](ROADMAP.md); [`examples/apo.toml`](examples/apo.toml)
+- Enterprise-friendly **static SVG badges** (`{repo}-*-badge.svg`) for hygiene and evidence — relative README embeds work on GitHub Enterprise; `--no-badge` / `--badge-output`
+- CI **APO self-analysis** job + `./scripts/ci.sh` dogfood (`analyze` + `evidence` on this repo; badges under `docs/badges/`)
+
+### Changed
+
+- Package version `0.2.0`; description and README cover hygiene, evidence, and packs
+- Hygiene rule count **36** (adds `documentation.doc_tooling`)
+
+### Notes
+
+- Packs are observational (configs + CI/script text); APO does not execute toolchains for scores
+- Ollama client is HTTP-only
+- MSRV: Rust **1.85** (edition 2024)
+
 ## [0.1.0] - 2026-07-20
 
 First public release of **APO** — Engineering Evidence Platform — with the Repository Hygiene analyzer.
@@ -33,4 +76,5 @@ First public release of **APO** — Engineering Evidence Platform — with the R
 - MSRV: Rust **1.85** (edition 2024)
 - Uses `gix` 0.85 (`revision` + `sha1`) for Git history sampling
 
-[0.1.0]: https://github.com/thanos/apo/releases/tag/v0.1.0
+[0.2.0]: https://github.com/baoulo/apo/releases/tag/v0.2.0
+[0.1.0]: https://github.com/baoulo/apo/releases/tag/v0.1.0

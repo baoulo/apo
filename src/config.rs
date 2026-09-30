@@ -29,6 +29,17 @@ impl OutputFormat {
     }
 }
 
+/// Which analyzer pipeline to run.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AnalyzerMode {
+    /// Repository hygiene (v0.1).
+    #[default]
+    Hygiene,
+    /// Knowledge + AI evidence (v0.2).
+    Evidence,
+}
+
 /// Analysis configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
@@ -46,6 +57,18 @@ pub struct Config {
     pub prompt_only: bool,
     /// Print the LLM prompt to stdout.
     pub prompt_stdout: bool,
+    /// Analyzer pipeline to run.
+    pub mode: AnalyzerMode,
+    /// Enable optional Ollama semantic enrichment (evidence mode).
+    pub ollama: bool,
+    /// Ollama base URL.
+    pub ollama_url: String,
+    /// Ollama model name.
+    pub ollama_model: String,
+    /// Write a static SVG status badge next to report artifacts (enterprise-friendly).
+    pub badge: bool,
+    /// Optional explicit badge output path (file or directory).
+    pub badge_output: Option<std::path::PathBuf>,
 }
 
 impl Default for Config {
@@ -58,6 +81,13 @@ impl Default for Config {
             llm_prompt: false,
             prompt_only: false,
             prompt_stdout: false,
+            mode: AnalyzerMode::Hygiene,
+            ollama: false,
+            ollama_url: std::env::var("APO_OLLAMA_URL")
+                .unwrap_or_else(|_| "http://127.0.0.1:11434".into()),
+            ollama_model: std::env::var("APO_OLLAMA_MODEL").unwrap_or_else(|_| "llama3.2".into()),
+            badge: true,
+            badge_output: None,
         }
     }
 }

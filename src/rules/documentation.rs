@@ -17,6 +17,7 @@ pub fn rules() -> Vec<Box<dyn Rule>> {
         Box::new(Codeowners),
         Box::new(IssueTemplates),
         Box::new(PrTemplates),
+        Box::new(DocTooling),
     ]
 }
 
@@ -361,6 +362,26 @@ impl Rule for PrTemplates {
             "Pull request template detected.",
             "No pull request template detected.",
             "Add .github/pull_request_template.md.",
+        )
+    }
+}
+
+struct DocTooling;
+impl Rule for DocTooling {
+    fn id(&self) -> &'static str {
+        "documentation.doc_tooling"
+    }
+    fn evaluate(&self, ctx: &RepoContext) -> Finding {
+        helpers::finding_from_pack_or_legacy(
+            ctx,
+            self.id(),
+            Category::Documentation,
+            crate::packs::MapsTo::DocTooling,
+            Vec::new(),
+            "No documentation quality tooling detected (doctor/docs generators gated in CI).",
+            "Documentation tooling configuration detected.",
+            "Documentation tooling gated in CI/scripts (e.g. mix doctor, mix docs).",
+            "Gate docs quality in CI (e.g. mix doctor --full, mix docs --warnings-as-errors).",
         )
     }
 }

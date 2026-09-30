@@ -1,0 +1,25 @@
+name: Bug report
+description: Report incorrect behavior or a crash
+labels: ["bug"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What went wrong?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: Steps, commands, and expected vs actual output
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: APO version
+      placeholder: apo --version
+    validations:
+      required: true

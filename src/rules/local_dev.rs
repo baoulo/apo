@@ -59,68 +59,34 @@ impl Rule for Formatter {
         "local_development.formatter"
     }
     fn evaluate(&self, ctx: &RepoContext) -> Finding {
-        let mut hits = helpers::find_configs(
-            ctx,
-            &[
-                "rustfmt.toml",
-                ".rustfmt.toml",
-                ".prettierrc",
-                ".prettierrc.js",
-                ".prettierrc.cjs",
-                ".prettierrc.json",
-                ".prettierrc.yaml",
-                ".prettierrc.yml",
-                "prettier.config.js",
-                "prettier.config.cjs",
-                ".clang-format",
-                "pyproject.toml",
-            ],
-        );
-
-        // package.json scripts / prettier dep
+        let mut legacy = Vec::new();
         if let Some(pkg) = ctx.read_text("package.json") {
             let l = pkg.to_ascii_lowercase();
             if l.contains("\"prettier\"") || l.contains("\"format\"") {
-                hits.push("package.json".into());
+                legacy.push(EvidenceItem::path("package.json"));
             }
         }
-        if let Some(cargo) = ctx.read_text("Cargo.toml")
-            && cargo.to_ascii_lowercase().contains("rustfmt")
-        {
-            hits.push("Cargo.toml".into());
-        }
-        // ruff / black in pyproject
         if let Some(py) = ctx.read_text("pyproject.toml") {
             let l = py.to_ascii_lowercase();
-            if (l.contains("[tool.black]")
-                || l.contains("[tool.ruff")
-                || l.contains("[tool.isort]"))
-                && !hits.iter().any(|h| h == "pyproject.toml")
+            if l.contains("[tool.black]") || l.contains("[tool.ruff") || l.contains("[tool.isort]")
             {
-                hits.push("pyproject.toml".into());
+                legacy.push(EvidenceItem::path_detail(
+                    "pyproject.toml",
+                    "formatter tool table",
+                ));
             }
         }
-
-        hits.sort();
-        hits.dedup();
-
-        if hits.is_empty() {
-            Finding::builder(self.id(), Category::LocalDevelopment)
-                .status(Status::Missing)
-                .confidence(Confidence::Medium)
-                .summary("No formatter configuration detected.")
-                .remediation("Add formatter config (e.g. rustfmt.toml, .prettierrc, black/ruff).")
-                .build()
-        } else {
-            let mut b = Finding::builder(self.id(), Category::LocalDevelopment)
-                .status(Status::Present)
-                .confidence(Confidence::High)
-                .summary("Formatter configuration detected.");
-            for h in hits {
-                b = b.push_evidence(EvidenceItem::path(h));
-            }
-            b.build()
-        }
+        helpers::finding_from_pack_or_legacy(
+            ctx,
+            self.id(),
+            Category::LocalDevelopment,
+            crate::packs::MapsTo::Formatter,
+            legacy,
+            "No formatter configuration detected.",
+            "Formatter configuration detected.",
+            "Formatter configuration and CI/script enforcement detected.",
+            "Add formatter config and gate it in CI (e.g. mix format --check-formatted, cargo fmt, prettier).",
+        )
     }
 }
 
@@ -130,63 +96,30 @@ impl Rule for Linter {
         "local_development.linter"
     }
     fn evaluate(&self, ctx: &RepoContext) -> Finding {
-        let mut hits = helpers::find_configs(
-            ctx,
-            &[
-                "clippy.toml",
-                ".clippy.toml",
-                ".eslintrc",
-                ".eslintrc.js",
-                ".eslintrc.cjs",
-                ".eslintrc.json",
-                ".eslintrc.yml",
-                "eslint.config.js",
-                "eslint.config.mjs",
-                "eslint.config.cjs",
-                ".golangci.yml",
-                ".golangci.yaml",
-                "ruff.toml",
-                ".flake8",
-                "setup.cfg",
-                "pylintrc",
-                ".pylintrc",
-                "tslint.json",
-            ],
-        );
-
+        let mut legacy = Vec::new();
         if let Some(pkg) = ctx.read_text("package.json") {
             let l = pkg.to_ascii_lowercase();
             if l.contains("eslint") || l.contains("\"lint\"") {
-                hits.push("package.json".into());
+                legacy.push(EvidenceItem::path("package.json"));
             }
         }
         if let Some(py) = ctx.read_text("pyproject.toml") {
             let l = py.to_ascii_lowercase();
             if l.contains("[tool.ruff") || l.contains("[tool.pylint") || l.contains("flake8") {
-                hits.push("pyproject.toml".into());
+                legacy.push(EvidenceItem::path("pyproject.toml"));
             }
         }
-
-        hits.sort();
-        hits.dedup();
-
-        if hits.is_empty() {
-            Finding::builder(self.id(), Category::LocalDevelopment)
-                .status(Status::Missing)
-                .confidence(Confidence::Medium)
-                .summary("No linter configuration detected.")
-                .remediation("Add linter config (eslint, clippy, ruff, golangci-lint, etc.).")
-                .build()
-        } else {
-            let mut b = Finding::builder(self.id(), Category::LocalDevelopment)
-                .status(Status::Present)
-                .confidence(Confidence::High)
-                .summary("Linter configuration detected.");
-            for h in hits {
-                b = b.push_evidence(EvidenceItem::path(h));
-            }
-            b.build()
-        }
+        helpers::finding_from_pack_or_legacy(
+            ctx,
+            self.id(),
+            Category::LocalDevelopment,
+            crate::packs::MapsTo::Linter,
+            legacy,
+            "No linter configuration detected.",
+            "Linter configuration detected.",
+            "Linter configuration and CI/script enforcement detected.",
+            "Add linter config and gate it in CI (e.g. mix credo --strict, eslint, clippy).",
+        )
     }
 }
 
@@ -197,57 +130,34 @@ impl Rule for TypeChecker {
     }
     fn evaluate(&self, ctx: &RepoContext) -> Finding {
         let signals = ctx.detect_signals();
-        let mut hits = helpers::find_configs(
-            ctx,
-            &[
-                "tsconfig.json",
-                "jsconfig.json",
-                "mypy.ini",
-                ".mypy.ini",
-                "pyrightconfig.json",
-            ],
-        );
-
+        let mut legacy = Vec::new();
+        if signals.has_cargo {
+            legacy.push(EvidenceItem::path("Cargo.toml"));
+        }
+        if signals.has_go_mod {
+            legacy.push(EvidenceItem::path("go.mod"));
+        }
+        if signals.has_mix {
+            // Dialyzer / gradual typing — Presence of mix alone is not enough;
+            // packs supply dialyzer configs/CI. Keep mix.exs only as weak context via packs.
+        }
         if let Some(py) = ctx.read_text("pyproject.toml") {
             let l = py.to_ascii_lowercase();
             if l.contains("[tool.mypy]") || l.contains("[tool.pyright]") || l.contains("mypy") {
-                hits.push("pyproject.toml".into());
+                legacy.push(EvidenceItem::path("pyproject.toml"));
             }
         }
-
-        // Rust/Go/Java are typed by default — mark Present when those ecosystems dominate.
-        if signals.has_cargo {
-            hits.push("Cargo.toml".into());
-        }
-        if signals.has_go_mod {
-            hits.push("go.mod".into());
-        }
-
-        hits.sort();
-        hits.dedup();
-
-        if hits.is_empty() {
-            Finding::builder(self.id(), Category::LocalDevelopment)
-                .status(Status::Missing)
-                .confidence(Confidence::Medium)
-                .summary("No type checker configuration detected.")
-                .remediation("Add tsconfig/mypy/pyright or adopt a typed language toolchain.")
-                .build()
-        } else {
-            let summary = if signals.has_cargo || signals.has_go_mod {
-                "Typed toolchain or type-checker configuration detected."
-            } else {
-                "Type checker configuration detected."
-            };
-            let mut b = Finding::builder(self.id(), Category::LocalDevelopment)
-                .status(Status::Present)
-                .confidence(Confidence::High)
-                .summary(summary);
-            for h in hits {
-                b = b.push_evidence(EvidenceItem::path(h));
-            }
-            b.build()
-        }
+        helpers::finding_from_pack_or_legacy(
+            ctx,
+            self.id(),
+            Category::LocalDevelopment,
+            crate::packs::MapsTo::TypeChecker,
+            legacy,
+            "No type checker configuration detected.",
+            "Type checker / typed toolchain configuration detected.",
+            "Type checking gated in CI/scripts.",
+            "Add type checking (dialyzer, tsc, mypy, or compile --warnings-as-errors) and gate it in CI.",
+        )
     }
 }
 

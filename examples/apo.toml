@@ -1,0 +1,14 @@
+# Example APO project config (optional)
+#
+# Copy to the repository root as `.apo.toml` to force packs or add custom tooling needles.
+# Detection remains observational — APO does not execute these commands.
+
+[ecosystem]
+# languages = ["elixir"]
+# web = ["nextjs", "playwright"]
+
+# [[tooling]]
+# id = "elixir.credo"
+# maps_to = "local_development.linter"
+# configs = [".credo.exs"]
+# ci_commands = ["mix credo --strict"]
