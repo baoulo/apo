@@ -408,7 +408,7 @@ mod tests {
     fn http_ok(body: &str) -> Vec<u8> {
         let body = body.as_bytes();
         let mut out = format!(
-            "HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n",
+            "HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
             body.len()
         )
         .into_bytes();
@@ -428,8 +428,46 @@ mod tests {
         http_ok(&serde_json::json!({ "models": models }).to_string())
     }
 
+    fn read_http_request(stream: &mut std::net::TcpStream) {
+        stream.set_read_timeout(Some(Duration::from_secs(3))).ok();
+        let mut buf = Vec::new();
+        let mut tmp = [0u8; 2048];
+        loop {
+            match stream.read(&mut tmp) {
+                Ok(0) => break,
+                Ok(n) => {
+                    buf.extend_from_slice(&tmp[..n]);
+                    if let Some(header_end) = buf.windows(4).position(|w| w == b"\r\n\r\n") {
+                        let header_end = header_end + 4;
+                        let headers =
+                            String::from_utf8_lossy(&buf[..header_end]).to_ascii_lowercase();
+                        let content_length = headers.lines().find_map(|line| {
+                            line.strip_prefix("content-length:")
+                                .map(|v| v.trim().parse::<usize>().unwrap_or(0))
+                        });
+                        if let Some(len) = content_length {
+                            while buf.len() < header_end + len {
+                                match stream.read(&mut tmp) {
+                                    Ok(0) => break,
+                                    Ok(n) => buf.extend_from_slice(&tmp[..n]),
+                                    Err(_) => break,
+                                }
+                            }
+                        }
+                        break;
+                    }
+                    if buf.len() > 1024 * 1024 {
+                        break;
+                    }
+                }
+                Err(_) => break,
+            }
+        }
+    }
+
     fn spawn_scripted_server(responses: Vec<Vec<u8>>) -> (String, thread::JoinHandle<()>) {
         let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
+        listener.set_nonblocking(false).ok();
         let addr = listener.local_addr().expect("addr");
         let (ready_tx, ready_rx) = std::sync::mpsc::channel();
         let handle = thread::spawn(move || {
@@ -438,10 +476,13 @@ mod tests {
                 let Ok((mut stream, _)) = listener.accept() else {
                     break;
                 };
-                let mut buf = [0u8; 8192];
-                let _ = stream.read(&mut buf);
+                stream.set_write_timeout(Some(Duration::from_secs(3))).ok();
+                // Drain the full request before answering — Windows ureq closes with
+                // WSAECONNRESET (10054) if we respond/drop mid-body.
+                read_http_request(&mut stream);
                 let _ = stream.write_all(&resp);
                 let _ = stream.flush();
+                let _ = stream.shutdown(std::net::Shutdown::Write);
             }
         });
         ready_rx
