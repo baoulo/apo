@@ -73,6 +73,7 @@ static PACKS: &[PackDef] = &[
             tool!("types", MapsTo::TypeChecker, configs: ["Cargo.toml"], ci: ["cargo check", "cargo build"]),
             tool!("audit", MapsTo::DependencyScanning, configs: ["deny.toml", "audit.toml"], ci: ["cargo audit", "cargo deny"]),
             tool!("test", MapsTo::TestFramework, configs: [], ci: ["cargo test"]),
+            tool!("docs", MapsTo::DocTooling, configs: [], ci: ["cargo doc"]),
             tool!("static", MapsTo::StaticAnalysisCi, configs: [], ci: ["cargo clippy", "cargo deny"]),
             tool!("types_ci", MapsTo::TypeCheckingCi, configs: [], ci: ["cargo check", "cargo build"]),
         ],

@@ -12,8 +12,13 @@ Requirements:
 ```bash
 git clone https://github.com/thanos/apo.git
 cd apo
-./scripts/ci.sh   # fmt, clippy, test, llvm-cov (≥80%), deny, audit, apo self-analysis
+./scripts/setup.sh   # rustup components + optional pre-commit hooks
+# or: make setup
+./scripts/ci.sh      # fmt, clippy, doc, test, llvm-cov (≥80%), deny, audit, apo self-analysis
 ```
+
+Commit messages should follow [Conventional Commits](https://www.conventionalcommits.org/)
+(see `.commitlintrc.json`).
 
 Or run checks individually:
 

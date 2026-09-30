@@ -5,6 +5,8 @@
 [![docs.rs](https://docs.rs/apo/badge.svg)](https://docs.rs/apo)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![MSRV](https://img.shields.io/badge/MSRV-1.85-blue)](https://blog.rust-lang.org/2025/02/20/Rust-1.85.0/)
+![APO hygiene](docs/badges/apo-hygiene.svg)
+![APO evidence](docs/badges/apo-evidence.svg)
 
 **APO** (from Greek *apothiki* — "storehouse") is an **Engineering Evidence Platform**.
 

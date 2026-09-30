@@ -14,11 +14,19 @@ run() {
 
 run cargo fmt --all -- --check
 run cargo clippy --all-targets --all-features -- -D warnings
+run cargo doc --no-deps --document-private-items
 run cargo test --all-targets
 run cargo llvm-cov --all-features --lcov --output-path lcov.info \
   --ignore-filename-regex 'src/main\.rs' \
   --fail-under-lines 80
 run cargo deny check
+
+if command -v gitleaks >/dev/null 2>&1; then
+  run gitleaks detect --source . --config .gitleaks.toml --no-banner
+else
+  echo ""
+  echo "==> gitleaks (skipped — install from https://github.com/gitleaks/gitleaks)"
+fi
 
 # Optional but present in CI audit job:
 if command -v cargo-audit >/dev/null 2>&1 || cargo audit -h >/dev/null 2>&1; then

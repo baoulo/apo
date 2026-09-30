@@ -1,0 +1,8 @@
+# Default owners for this repository
+*       @thanos
+
+# Critical paths
+/src/                 @thanos
+/.github/workflows/   @thanos
+/Cargo.toml           @thanos
+/deny.toml            @thanos
