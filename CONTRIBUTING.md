@@ -10,7 +10,7 @@ Requirements:
 - Git (used for remote clones and history sampling)
 
 ```bash
-git clone https://github.com/thanos/apo.git
+git clone https://github.com/baoulo/apo.git
 cd apo
 ./scripts/setup.sh   # rustup components + optional pre-commit hooks
 # or: make setup

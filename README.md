@@ -1,6 +1,6 @@
 # APO
 
-[![CI](https://github.com/thanos/apo/actions/workflows/ci.yml/badge.svg)](https://github.com/thanos/apo/actions/workflows/ci.yml)
+[![CI](https://github.com/baoulo/apo/actions/workflows/ci.yml/badge.svg)](https://github.com/baoulo/apo/actions/workflows/ci.yml)
 [![crates.io](https://img.shields.io/crates/v/apo.svg)](https://crates.io/crates/apo)
 [![docs.rs](https://docs.rs/apo/badge.svg)](https://docs.rs/apo)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -19,22 +19,70 @@ Hygiene rules emit evidence only. A separate policy layer turns those observatio
 
 ## Install
 
-### From crates.io
+Release binaries ship on [GitHub Releases](https://github.com/baoulo/apo/releases) (with `SHA256SUMS`). Prefer a package manager or `install.sh` for day-to-day use; `cargo install` is the contributor path. Packaging is scaffolded with [sastri](https://crates.io/crates/sastri) (`Sastri.toml`).
+
+### Homebrew
+
+From [baoulo/homebrew-tap](https://github.com/baoulo/homebrew-tap) (fill formula checksums from `SHA256SUMS` after each release):
+
+```bash
+brew install baoulo/tap/apo
+```
+
+### Scoop (Windows)
+
+From [baoulo/scoop-bucket](https://github.com/baoulo/scoop-bucket):
+
+```bash
+scoop bucket add baoulo https://github.com/baoulo/scoop-bucket
+scoop install apo
+```
+
+### mise
+
+See [packaging/mise/README.md](packaging/mise/README.md).
+
+```bash
+mise use -g github:baoulo/apo@0.2.0
+```
+
+### asdf
+
+From [baoulo/asdf-apo](https://github.com/baoulo/asdf-apo) (push `packaging/asdf-apo` there):
+
+```bash
+asdf plugin add apo https://github.com/baoulo/asdf-apo.git
+asdf install apo 0.2.0
+```
+
+### curl
+
+Installs the latest tag into `~/.local/bin` (or `APO_INSTALL_DIR`). Pin with `APO_VERSION=v0.2.0`.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/baoulo/apo/main/scripts/install.sh | sh
+```
+
+### crates.io / from source
+
+The crates.io package remains under the [`thanos`](https://crates.io/users/thanos) publisher; source and issues live at [baoulo/apo](https://github.com/baoulo/apo).
 
 ```bash
 cargo install apo
-```
-
-### From source
-
-```bash
-cargo install --git https://github.com/thanos/apo
+cargo install --git https://github.com/baoulo/apo
 # or from a checkout:
 cargo install --path .
 ```
 
-Prebuilt binaries for Linux, macOS, and Windows are attached to [GitHub Releases](https://github.com/thanos/apo/releases) on each `v*` tag (with `SHA256SUMS`).
+### CI
 
+```yaml
+- uses: baoulo/apo/.github/actions/setup-apo@main
+  # with:
+  #   version: "0.2.0"   # optional; omit for latest
+```
+
+Templates under [`packaging/`](packaging/) are regenerated with `sastri generate --force` (CI/release workflows are owned by this repo and stay out of Sastri generation).
 ## Usage
 
 ```bash
@@ -346,7 +394,7 @@ cargo run -- analyze . --format both --badge-output docs/badges/apo-hygiene.svg
 cargo run -- evidence . --format both --badge-output docs/badges/apo-evidence.svg
 ```
 
-`./scripts/ci.sh` dogfoods APO on this repo (writes `out/apo-self/` reports and refreshes `docs/badges/`). CI runs the same as the **APO self-analysis** job.
+`./scripts/ci.sh` dogfoods APO on this repo (writes `out/apo-self/` reports and refreshes `docs/badges/`). CI runs the same as the **APO self-analysis** job. See [Eating Our Own Dog Food](docs/eating-our-own-dog-food.md) for a short narrative of the first self-remediation pass.
 
 Requires `cargo-llvm-cov` and `cargo-deny` on PATH (same as CI). See [CONTRIBUTING.md](CONTRIBUTING.md) for PR and release workflow details. See [CHANGELOG.md](CHANGELOG.md) for release notes.
 

@@ -7,11 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Repository moved to the [baoulo](https://github.com/baoulo/apo) GitHub org; crates.io publisher remains [`thanos`](https://crates.io/users/thanos)
+
 ### Added
 
+- Multi-channel install packaging via [sastri](https://crates.io/crates/sastri) (`Sastri.toml`): `scripts/install.sh`, Homebrew / Scoop / asdf / mise under `packaging/`, and `.github/actions/setup-apo`
 - Rust pack `docs` tooling needle (`cargo doc` → `documentation.doc_tooling`)
 - Repository hygiene/knowledge/AI dogfood artifacts: architecture, ADRs, runbooks, glossary, API/design docs, CODEOWNERS, PR/issue templates, settings-as-code, editorconfig, pre-commit, gitleaks, commitlint, AGENTS.md, versioned `prompts/`, `Makefile` / `scripts/setup.sh`
 - CI jobs for `cargo doc` and gitleaks secret scanning
+- Narrative write-up: [Eating Our Own Dog Food](docs/eating-our-own-dog-food.md)
 
 ## [0.2.0] - 2026-07-20
 
@@ -70,5 +76,5 @@ First public release of **APO** — Engineering Evidence Platform — with the R
 - MSRV: Rust **1.85** (edition 2024)
 - Uses `gix` 0.85 (`revision` + `sha1`) for Git history sampling
 
-[0.2.0]: https://github.com/thanos/apo/releases/tag/v0.2.0
-[0.1.0]: https://github.com/thanos/apo/releases/tag/v0.1.0
+[0.2.0]: https://github.com/baoulo/apo/releases/tag/v0.2.0
+[0.1.0]: https://github.com/baoulo/apo/releases/tag/v0.1.0

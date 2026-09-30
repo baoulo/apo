@@ -1,0 +1,22 @@
+name: Setup apo
+description: Install apo from GitHub Releases (no Rust toolchain)
+inputs:
+  version:
+    description: Release version without leading v (default latest)
+    required: false
+    default: ""
+runs:
+  using: composite
+  steps:
+    - name: Install apo
+      shell: bash
+      env:
+        APO_VERSION: ${{ inputs.version }}
+        APO_REPO: baoulo/apo
+        APO_INSTALL_DIR: ${{ runner.temp }}/bin
+      run: |
+        set -euo pipefail
+        mkdir -p "${APO_INSTALL_DIR}"
+        curl -fsSL "https://raw.githubusercontent.com/baoulo/apo/main/scripts/install.sh" | sh
+        echo "${APO_INSTALL_DIR}" >> "$GITHUB_PATH"
+        "${APO_INSTALL_DIR}/apo" --version

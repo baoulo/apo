@@ -12,8 +12,8 @@ Please **do not** open a public GitHub issue for security vulnerabilities.
 
 Instead, report privately via one of:
 
-- GitHub Security Advisories: <https://github.com/thanos/apo/security/advisories/new>
-- Email the maintainer listed on the GitHub profile for [thanos/apo](https://github.com/thanos/apo)
+- GitHub Security Advisories: <https://github.com/baoulo/apo/security/advisories/new>
+- Email the maintainer listed on the GitHub profile for [baoulo/apo](https://github.com/baoulo/apo)
 
 Include:
 
