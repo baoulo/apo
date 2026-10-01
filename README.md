@@ -10,6 +10,8 @@
 
 **APO** (from Greek *apothiki* — "storehouse") is an **Engineering Evidence Tool**.
 
+<img src="docs/Library_Sakya_Monastery_Tibet_.jpg" alt="Library of the Sakya Monastery, Tibet" width="600">
+
 You use `apo` to scan a git repository to make an inventory of Engineering evidence — what the repo already has on disk and in sampled Git/CI text:
 
 **Hygiene controls** — docs, editor/setup, tests/coverage gates, dependency & secret scanning signals, CI/release automation, CODEOWNERS/templates/commit conventions.
