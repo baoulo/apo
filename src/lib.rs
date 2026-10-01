@@ -29,6 +29,23 @@ pub use source::Workspace;
 
 use tracing::{info, warn};
 
+/// Merge `.apo.toml` `[analyze]` defaults when the caller left them unset.
+fn with_project_analyze(config: &Config, root: &std::path::Path) -> Config {
+    let mut cfg = config.clone();
+    let Some(project) = packs::ApoProjectConfig::load_from_root(root) else {
+        return cfg;
+    };
+    if cfg.rule_disable.is_empty() && !project.analyze.rule_disable.is_empty() {
+        cfg.rule_disable = project.analyze.rule_disable;
+    }
+    if let Some(limit) = project.analyze.commit_sample_limit
+        && cfg.commit_sample_limit == Config::default().commit_sample_limit
+    {
+        cfg.commit_sample_limit = limit;
+    }
+    cfg
+}
+
 /// Analyze a repository and produce a hygiene report.
 ///
 /// `target` may be a local path or a remote Git URI. Remote URIs are shallow-cloned
@@ -42,6 +59,7 @@ pub fn analyze(config: &Config) -> Result<Report> {
 pub fn analyze_with_workspace(config: &Config) -> Result<(Report, Workspace)> {
     info!(target = %config.target, "resolving repository");
     let workspace = source::resolve(&config.target, config.commit_sample_limit)?;
+    let config = with_project_analyze(config, &workspace.path);
 
     info!(
         path = %workspace.path.display(),
@@ -53,26 +71,32 @@ pub fn analyze_with_workspace(config: &Config) -> Result<(Report, Workspace)> {
     packs::attach_tooling(&mut ctx, &config.packs_dirs)?;
 
     info!(files = ctx.inventory.len(), "evaluating hygiene rules");
-    let findings = filter_disabled(rules::evaluate_all(&ctx), &config.rule_disable);
+    let (findings, transparency) = filter_disabled(rules::evaluate_all(&ctx), &config.rule_disable);
 
     info!(count = findings.len(), "computing policy scores");
     let policy = policy::evaluate(&findings);
 
-    let report = Report::build(&ctx, findings, policy, &workspace);
+    let report = Report::build(&ctx, findings, policy, &workspace, transparency);
     Ok((report, workspace))
 }
 
 fn filter_disabled(
     findings: Vec<evidence::Finding>,
     disabled: &[String],
-) -> Vec<evidence::Finding> {
+) -> (Vec<evidence::Finding>, report::Transparency) {
+    let mut transparency = report::Transparency {
+        disabled_rules: disabled.to_vec(),
+        ..Default::default()
+    };
+    transparency.sort();
     if disabled.is_empty() {
-        return findings;
+        return (findings, transparency);
     }
-    findings
+    let findings = findings
         .into_iter()
         .filter(|f| !disabled.iter().any(|d| d == &f.rule))
-        .collect()
+        .collect();
+    (findings, transparency)
 }
 
 /// Analyze knowledge + AI evidence (v0.2).
@@ -156,12 +180,13 @@ pub fn analyze_pack(config: &Config) -> Result<EvidencePack> {
 pub fn analyze_pack_with_workspace(config: &Config) -> Result<(EvidencePack, Workspace)> {
     info!(target = %config.target, "resolving repository for unified pack");
     let workspace = source::resolve(&config.target, config.commit_sample_limit)?;
+    let config = with_project_analyze(config, &workspace.path);
     let mut ctx = discovery::discover(&workspace.path, config.commit_sample_limit)?;
     packs::attach_tooling(&mut ctx, &config.packs_dirs)?;
 
-    let findings = filter_disabled(rules::evaluate_all(&ctx), &config.rule_disable);
+    let (findings, transparency) = filter_disabled(rules::evaluate_all(&ctx), &config.rule_disable);
     let policy = policy::evaluate(&findings);
-    let hygiene = Report::build(&ctx, findings, policy, &workspace);
+    let hygiene = Report::build(&ctx, findings, policy, &workspace, transparency);
 
     let knowledge = knowledge::analyze(&ctx);
     let ai = ai_evidence::analyze(&ctx);

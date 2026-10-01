@@ -4,12 +4,27 @@ use std::path::PathBuf;
 
 use tracing::warn;
 
+use serde::{Deserialize, Serialize};
+
 use crate::discovery::RepoContext;
-use crate::error::{Error, Result};
-use crate::packs::catalog::{builtin_packs, static_builtin_packs};
+use crate::error::Result;
+use crate::packs::catalog::builtin_packs;
 use crate::packs::config_file::ApoProjectConfig;
 use crate::packs::def::PackDef;
 use crate::packs::external::load_external_packs;
+
+/// Tooling entry skipped because `maps_to` was unknown or invalid.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SkippedToolingNote {
+    /// Pack id, `overlay`, or file path context.
+    pub source: String,
+    /// Tooling entry id.
+    pub id: String,
+    /// Requested `maps_to` string that could not be resolved.
+    pub maps_to: String,
+    /// Human-readable reason.
+    pub reason: String,
+}
 
 /// Which hygiene rule a tooling signal feeds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -80,6 +95,10 @@ pub struct ToolingEntry {
 pub struct ResolvedTooling {
     pub active_packs: Vec<String>,
     pub entries: Vec<ToolingEntry>,
+    /// Built-in pack ids replaced by external packs.
+    pub overridden_packs: Vec<String>,
+    /// Tooling entries skipped (e.g. unknown maps_to).
+    pub skipped_tooling: Vec<SkippedToolingNote>,
 }
 
 impl ResolvedTooling {
@@ -108,22 +127,27 @@ impl ResolvedTooling {
     }
 }
 
-/// Merge builtins + external packs; error if an external id collides with a builtin.
-pub fn merge_pack_catalog(external: Vec<PackDef>) -> Result<Vec<PackDef>> {
-    let builtin_ids: std::collections::BTreeSet<&str> =
-        static_builtin_packs().iter().map(|p| p.id).collect();
-    for pack in &external {
-        if builtin_ids.contains(pack.id.as_str()) {
-            return Err(Error::Config(format!(
-                "external pack id '{}' conflicts with a built-in pack; rename the external pack",
-                pack.id
-            )));
+/// Merge builtins + external packs. External packs with the same `id` **override** builtins.
+/// Returns `(catalog, overridden_builtin_ids)`.
+pub fn merge_pack_catalog(external: Vec<PackDef>) -> (Vec<PackDef>, Vec<String>) {
+    let mut by_id: std::collections::BTreeMap<String, PackDef> = builtin_packs()
+        .into_iter()
+        .map(|p| (p.id.clone(), p))
+        .collect();
+    let mut overridden = Vec::new();
+    for pack in external {
+        if by_id.contains_key(&pack.id) {
+            tracing::info!(
+                pack = %pack.id,
+                "external pack overrides built-in pack with the same id"
+            );
+            overridden.push(pack.id.clone());
         }
+        by_id.insert(pack.id.clone(), pack);
     }
-    let mut all = builtin_packs();
-    all.extend(external);
-    all.sort_by(|a, b| a.id.cmp(&b.id));
-    Ok(all)
+    overridden.sort();
+    overridden.dedup();
+    (by_id.into_values().collect(), overridden)
 }
 
 /// List pack ids that match the repository inventory (and forced overlays).
@@ -196,8 +220,8 @@ pub fn resolve_tooling(
     config: Option<&ApoProjectConfig>,
     packs_dirs: &[PathBuf],
 ) -> Result<ResolvedTooling> {
-    let external = load_external_packs(&ctx.root, packs_dirs)?;
-    let catalog = merge_pack_catalog(external)?;
+    let (external, mut skipped_tooling) = load_external_packs(&ctx.root, packs_dirs)?;
+    let (catalog, overridden_packs) = merge_pack_catalog(external);
     let active = active_pack_ids(ctx, config, &catalog);
     let mut entries = Vec::new();
 
@@ -220,6 +244,12 @@ pub fn resolve_tooling(
         for overlay in &cfg.tooling {
             let Some(maps_to) = overlay.maps_to_rule() else {
                 warn!(id = %overlay.id, maps_to = %overlay.maps_to, "skipping overlay with unknown maps_to");
+                skipped_tooling.push(SkippedToolingNote {
+                    source: "overlay".into(),
+                    id: overlay.id.clone(),
+                    maps_to: overlay.maps_to.clone(),
+                    reason: "unknown maps_to rule id".into(),
+                });
                 continue;
             };
             entries.push(ToolingEntry {
@@ -232,8 +262,58 @@ pub fn resolve_tooling(
         }
     }
 
+    skipped_tooling.sort_by(|a, b| (&a.source, &a.id).cmp(&(&b.source, &b.id)));
+
     Ok(ResolvedTooling {
         active_packs: active,
         entries,
+        overridden_packs,
+        skipped_tooling,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::packs::def::{PackDef, PackKind, ToolingDef};
+
+    #[test]
+    fn merge_reports_overridden_ids_and_keeps_external_tooling() {
+        let external = vec![PackDef {
+            id: "rust".into(),
+            kind: PackKind::Language,
+            manifests: vec!["Cargo.toml".into()],
+            path_contains: vec![],
+            basename_any: vec![],
+            package_json_contains: vec![],
+            tooling: vec![ToolingDef {
+                id: "lint".into(),
+                maps_to: MapsTo::Linter,
+                configs: vec!["custom-clippy.toml".into()],
+                ci_commands: vec![],
+            }],
+        }];
+        let (merged, overridden) = merge_pack_catalog(external);
+        assert_eq!(overridden, vec!["rust".to_string()]);
+        let rust = merged.iter().find(|p| p.id == "rust").unwrap();
+        assert_eq!(
+            rust.tooling[0].configs,
+            vec!["custom-clippy.toml".to_string()]
+        );
+    }
+
+    #[test]
+    fn merge_new_external_id_is_not_overridden() {
+        let external = vec![PackDef {
+            id: "crystal".into(),
+            kind: PackKind::Language,
+            manifests: vec!["shard.yml".into()],
+            path_contains: vec![],
+            basename_any: vec![],
+            package_json_contains: vec![],
+            tooling: vec![],
+        }];
+        let (_merged, overridden) = merge_pack_catalog(external);
+        assert!(overridden.is_empty());
+    }
 }

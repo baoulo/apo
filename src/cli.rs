@@ -176,6 +176,30 @@ pub enum Commands {
         #[arg(long)]
         pack: bool,
     },
+
+    /// Inspect or export built-in language/web packs.
+    Packs {
+        #[command(subcommand)]
+        command: PacksCommands,
+    },
+}
+
+/// Subcommands under `apo packs`.
+#[derive(Debug, Subcommand)]
+pub enum PacksCommands {
+    /// Write built-in packs as external TOML files (`{id}.toml`).
+    ///
+    /// Useful for inspection or as a starting point: place a dumped file under
+    /// `.apo/packs/` (same `id`) to **override** the shipped built-in definition.
+    Dump {
+        /// Output directory for `{id}.toml` files.
+        #[arg(long, short = 'o')]
+        output: PathBuf,
+
+        /// Dump only this built-in pack id (default: all).
+        #[arg(long)]
+        id: Option<String>,
+    },
 }
 
 impl Cli {
@@ -308,6 +332,9 @@ impl Cli {
                 cfg.mode = mode;
                 apply_packs(&mut cfg);
                 Ok(cfg)
+            }
+            Commands::Packs { .. } => {
+                Err("internal: packs subcommands are handled before into_config".into())
             }
         }
     }

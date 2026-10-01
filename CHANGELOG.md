@@ -10,7 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Pack catalog: [docs/language-packs.md](docs/language-packs.md) (47 language/web packs)
-- **External packs:** load declarative TOML from `.apo/packs/`, `--packs-dir`, or `APO_PACKS_DIR` without rebuilding ([`examples/packs/crystal.toml`](examples/packs/crystal.toml)); builtin id conflicts are errors
+- **External packs:** load declarative TOML from `.apo/packs/`, `--packs-dir`, or `APO_PACKS_DIR` without rebuilding ([`examples/packs/crystal.toml`](examples/packs/crystal.toml)); same `id` as a built-in **overrides** it
+- `apo packs dump -o <dir>` exports built-in packs as `{id}.toml` for inspection/templates
+- **Report transparency:** hygiene JSON/Markdown list disabled rules (`rule_disable`), overridden packs, skipped tooling (`unknown maps_to`), and not-applicable rule ids
 
 ## [0.3.0] - 2026-10-01
 

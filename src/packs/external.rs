@@ -7,6 +7,7 @@ use tracing::warn;
 
 use crate::error::{Error, Result};
 use crate::packs::MapsTo;
+use crate::packs::SkippedToolingNote;
 use crate::packs::def::{PackDef, PackKind, ToolingDef};
 
 /// Default relative directory under a repo root for external packs.
@@ -39,7 +40,7 @@ struct ExternalTooling {
 }
 
 impl ExternalPackFile {
-    fn into_pack_def(self, path: &Path) -> Result<PackDef> {
+    fn into_pack_def(self, path: &Path) -> Result<(PackDef, Vec<SkippedToolingNote>)> {
         let kind = match self.kind.to_ascii_lowercase().as_str() {
             "language" | "lang" => PackKind::Language,
             "web" => PackKind::Web,
@@ -57,15 +58,23 @@ impl ExternalPackFile {
             )));
         }
 
+        let pack_id = self.id.clone();
         let mut tooling = Vec::new();
+        let mut skipped = Vec::new();
         for t in self.tooling {
             let Some(maps_to) = MapsTo::from_rule_id(&t.maps_to) else {
                 warn!(
-                    pack = %self.id,
+                    pack = %pack_id,
                     maps_to = %t.maps_to,
                     path = %path.display(),
                     "skipping tooling entry with unknown maps_to"
                 );
+                skipped.push(SkippedToolingNote {
+                    source: pack_id.clone(),
+                    id: t.id,
+                    maps_to: t.maps_to,
+                    reason: format!("unknown maps_to in {}", path.display()),
+                });
                 continue;
             };
             tooling.push(ToolingDef {
@@ -76,22 +85,25 @@ impl ExternalPackFile {
             });
         }
 
-        Ok(PackDef {
-            id: self.id,
-            kind,
-            manifests: self.manifests,
-            path_contains: self.path_contains,
-            basename_any: self.basename_any,
-            package_json_contains: self.package_json_contains,
-            tooling,
-        })
+        Ok((
+            PackDef {
+                id: self.id,
+                kind,
+                manifests: self.manifests,
+                path_contains: self.path_contains,
+                basename_any: self.basename_any,
+                package_json_contains: self.package_json_contains,
+                tooling,
+            },
+            skipped,
+        ))
     }
 }
 
 /// Load all `*.toml` packs from a directory (non-recursive). Missing dir → empty.
-pub fn load_packs_from_dir(dir: &Path) -> Result<Vec<PackDef>> {
+pub fn load_packs_from_dir(dir: &Path) -> Result<(Vec<PackDef>, Vec<SkippedToolingNote>)> {
     if !dir.exists() {
-        return Ok(Vec::new());
+        return Ok((Vec::new(), Vec::new()));
     }
     if !dir.is_dir() {
         return Err(Error::Config(format!(
@@ -112,20 +124,27 @@ pub fn load_packs_from_dir(dir: &Path) -> Result<Vec<PackDef>> {
     paths.sort();
 
     let mut packs = Vec::new();
+    let mut skipped = Vec::new();
     for path in paths {
         let text = std::fs::read_to_string(&path)
             .map_err(|e| Error::Config(format!("read external pack {}: {e}", path.display())))?;
         let parsed: ExternalPackFile = toml::from_str(&text)
             .map_err(|e| Error::Config(format!("parse external pack {}: {e}", path.display())))?;
-        packs.push(parsed.into_pack_def(&path)?);
+        let (pack, pack_skipped) = parsed.into_pack_def(&path)?;
+        packs.push(pack);
+        skipped.extend(pack_skipped);
     }
-    Ok(packs)
+    Ok((packs, skipped))
 }
 
 /// Collect external packs from repo `.apo/packs` plus extra directories.
 ///
 /// Extra dirs typically come from `--packs-dir` / `APO_PACKS_DIR`.
-pub fn load_external_packs(repo_root: &Path, extra_dirs: &[PathBuf]) -> Result<Vec<PackDef>> {
+/// Also returns tooling entries skipped for unknown `maps_to`.
+pub fn load_external_packs(
+    repo_root: &Path,
+    extra_dirs: &[PathBuf],
+) -> Result<(Vec<PackDef>, Vec<SkippedToolingNote>)> {
     let mut dirs: Vec<PathBuf> = Vec::new();
     dirs.push(repo_root.join(DEFAULT_PACKS_SUBDIR));
     for d in extra_dirs {
@@ -133,9 +152,12 @@ pub fn load_external_packs(repo_root: &Path, extra_dirs: &[PathBuf]) -> Result<V
     }
 
     let mut all = Vec::new();
+    let mut skipped = Vec::new();
     let mut seen_ids = std::collections::BTreeSet::new();
     for dir in dirs {
-        for pack in load_packs_from_dir(&dir)? {
+        let (packs, dir_skipped) = load_packs_from_dir(&dir)?;
+        skipped.extend(dir_skipped);
+        for pack in packs {
             if !seen_ids.insert(pack.id.clone()) {
                 return Err(Error::Config(format!(
                     "duplicate external pack id '{}' (seen while loading {})",
@@ -147,7 +169,7 @@ pub fn load_external_packs(repo_root: &Path, extra_dirs: &[PathBuf]) -> Result<V
         }
     }
     all.sort_by(|a, b| a.id.cmp(&b.id));
-    Ok(all)
+    Ok((all, skipped))
 }
 
 #[cfg(test)]
@@ -174,12 +196,38 @@ ci_commands = ["ameba"]
 "#,
         )
         .unwrap();
-        let packs = load_packs_from_dir(dir.path()).unwrap();
+        let (packs, skipped) = load_packs_from_dir(dir.path()).unwrap();
+        assert!(skipped.is_empty());
         assert_eq!(packs.len(), 1);
         assert_eq!(packs[0].id, "crystal");
         assert_eq!(packs[0].kind, PackKind::Language);
         assert_eq!(packs[0].tooling.len(), 1);
         assert_eq!(packs[0].tooling[0].maps_to, MapsTo::Linter);
+    }
+
+    #[test]
+    fn records_skipped_unknown_maps_to() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(
+            dir.path().join("x.toml"),
+            r#"
+id = "x"
+kind = "language"
+manifests = ["x.toml"]
+
+[[tooling]]
+id = "bad"
+maps_to = "not.a.real.rule"
+configs = ["a"]
+"#,
+        )
+        .unwrap();
+        let (packs, skipped) = load_packs_from_dir(dir.path()).unwrap();
+        assert_eq!(packs.len(), 1);
+        assert!(packs[0].tooling.is_empty());
+        assert_eq!(skipped.len(), 1);
+        assert_eq!(skipped[0].id, "bad");
+        assert_eq!(skipped[0].maps_to, "not.a.real.rule");
     }
 
     #[test]

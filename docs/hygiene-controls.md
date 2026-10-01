@@ -91,6 +91,13 @@ measured](../README.md#what-gets-measured) section.
 | `collaboration.review_configuration` | PR templates, CODEOWNERS, settings-as-code, or auto-assign/reviewer configs. |
 | `collaboration.maintenance_activity` | Age of latest commit from Git history: ≤30 days **Enforced**, ≤90 **Present**, ≤180 **Partial**, older **Missing**. **Unknown** if the repo has no commits or Git metadata is unavailable. |
 
+## Disabling rules
+
+Via `.apo.toml` `[analyze].rule_disable` (or CLI/`Config::rule_disable`), listed rule
+ids are excluded from findings and scoring. Disabled ids, pack overrides, skipped
+tooling, and NotApplicable rules appear under report **Transparency** so exclusions
+are not silent.
+
 ## Git history signals
 
 Collaboration rules sample up to `commit_sample_limit` commits from `HEAD`

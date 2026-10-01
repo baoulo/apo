@@ -12,6 +12,7 @@ mod pack_diff;
 mod pack_write;
 mod prompt;
 mod sarif;
+mod transparency;
 
 pub use badge::{
     evidence_badge_svg, hygiene_badge_svg, resolve_badge_path, score_color, write_evidence_badge,
@@ -37,13 +38,14 @@ pub use pack_write::{
 };
 pub use prompt::{render_llm_prompt, resolve_prompt_path, write_llm_prompt};
 pub use sarif::{pack_to_sarif, write_sarif};
+pub use transparency::{SkippedToolingNote, Transparency};
 
 use serde::{Deserialize, Serialize};
 
 use crate::config::OutputFormat;
 use crate::discovery::RepoContext;
 use crate::error::Result;
-use crate::evidence::Finding;
+use crate::evidence::{Finding, Status};
 use crate::policy::PolicyResult;
 use crate::source::Workspace;
 
@@ -70,12 +72,15 @@ pub struct Report {
     pub executive_summary: String,
     /// Policy scores.
     pub policy: PolicyResult,
-    /// All findings.
+    /// All findings (excludes disabled rules).
     pub findings: Vec<Finding>,
     /// Missing / gap controls (rule ids).
     pub missing_controls: Vec<String>,
     /// Recommendations.
     pub recommendations: Vec<String>,
+    /// Disabled / overridden / skipped inputs for transparency.
+    #[serde(default, skip_serializing_if = "Transparency::is_empty")]
+    pub transparency: Transparency,
 }
 
 impl Report {
@@ -85,6 +90,7 @@ impl Report {
         findings: Vec<Finding>,
         policy: PolicyResult,
         workspace: &Workspace,
+        mut transparency: Transparency,
     ) -> Self {
         let overall = policy
             .overall_score
@@ -93,21 +99,43 @@ impl Report {
 
         let enforced = findings
             .iter()
-            .filter(|f| f.status == crate::evidence::Status::Enforced)
+            .filter(|f| f.status == Status::Enforced)
             .count();
         let present = findings
             .iter()
-            .filter(|f| f.status == crate::evidence::Status::Present)
+            .filter(|f| f.status == Status::Present)
             .count();
         let gaps = policy.gaps.len();
 
-        let executive_summary = format!(
+        transparency.not_applicable_rules = findings
+            .iter()
+            .filter(|f| f.status == Status::NotApplicable)
+            .map(|f| f.rule.clone())
+            .collect();
+        transparency
+            .overridden_packs
+            .clone_from(&ctx.tooling.overridden_packs);
+        transparency
+            .skipped_tooling
+            .clone_from(&ctx.tooling.skipped_tooling);
+        transparency.sort();
+
+        let mut executive_summary = format!(
             "Repository hygiene analysis of `{}` scored {overall}. \
              Observed {enforced} enforced, {present} present, and {gaps} gap signal(s) across {} rules. \
              Findings are observational evidence only; scores are derived by policy weights.",
             workspace.label,
             findings.len(),
         );
+        if !transparency.is_empty() {
+            executive_summary.push_str(&format!(
+                " Transparency: {} disabled rule(s), {} overridden pack(s), {} skipped tooling, {} not-applicable.",
+                transparency.disabled_rules.len(),
+                transparency.overridden_packs.len(),
+                transparency.skipped_tooling.len(),
+                transparency.not_applicable_rules.len(),
+            ));
+        }
 
         let missing_controls = policy.gaps.clone();
         let recommendations = policy.recommendations.clone();
@@ -126,6 +154,7 @@ impl Report {
             findings,
             missing_controls,
             recommendations,
+            transparency,
         }
     }
 }

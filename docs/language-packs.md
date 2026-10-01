@@ -28,7 +28,20 @@ Declarative TOML pack files load at analyze time (no rebuild, no embedded script
 3. Extra dirs from `--packs-dir` (repeatable) and/or `APO_PACKS_DIR`
 4. `.apo.toml` force-enable + `[[tooling]]` overlays
 
-**Conflict policy:** an external pack whose `id` matches a built-in pack is a hard error (rename the external id). Unknown `maps_to` values are skipped with a warning.
+**Override policy:** an external pack whose `id` matches a built-in pack **replaces**
+that built-in (last external file wins if the same id appears in multiple pack dirs —
+see load order). Unknown `maps_to` values are skipped with a warning.
+
+Overrides, skips, and `[analyze].rule_disable` exclusions are listed under **Transparency**
+in the hygiene report (JSON field `transparency`, Markdown `## Transparency`) so scores
+stay auditable.
+
+Dump the shipped catalog as TOML templates (edit and drop into `.apo/packs/` to override):
+
+```bash
+apo packs dump -o ./out/builtin-packs
+apo packs dump -o ./.apo/packs --id rust
+```
 
 **Schema** (see also [`examples/packs/crystal.toml`](../examples/packs/crystal.toml)):
 

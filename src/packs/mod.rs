@@ -3,6 +3,7 @@
 mod catalog;
 mod config_file;
 mod def;
+mod dump;
 mod external;
 mod resolve;
 
@@ -14,9 +15,11 @@ pub use config_file::{
     ToolingOverlay,
 };
 pub use def::{PackDef, PackKind, ToolingDef};
+pub use dump::{dump_builtin_packs, pack_to_toml};
 pub use external::{DEFAULT_PACKS_SUBDIR, load_external_packs, load_packs_from_dir};
 pub use resolve::{
-    MapsTo, ResolvedTooling, ToolingEntry, active_pack_ids, merge_pack_catalog, resolve_tooling,
+    MapsTo, ResolvedTooling, SkippedToolingNote, ToolingEntry, active_pack_ids, merge_pack_catalog,
+    resolve_tooling,
 };
 
 use crate::discovery::RepoContext;

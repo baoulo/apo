@@ -241,7 +241,7 @@ apo evidence . --llm-prompt           # same evidence prompt alongside the repor
 Hygiene rules use **observational language/web packs** so Elixir, SQL, Nim, COBOL, FORTRAN, Pascal, and other ecosystems are not under-scored relative to Rust/Node. Packs activate from manifests (e.g. `mix.exs`, `go.mod`, `fpm.toml`, `next.config.*`, `*.cob`) and contribute config paths + CI/Makefile needles into existing rule ids.
 
 Full pack catalog (activation signals + tooling → rule mappings): [docs/language-packs.md](docs/language-packs.md).
-Add a pack without rebuilding: drop a TOML file in `.apo/packs/` (see [external packs](docs/language-packs.md#external-packs) and [`examples/packs/crystal.toml`](examples/packs/crystal.toml)), or pass `--packs-dir` / `APO_PACKS_DIR`.
+Add a pack without rebuilding: drop a TOML file in `.apo/packs/` (see [external packs](docs/language-packs.md#external-packs) and [`examples/packs/crystal.toml`](examples/packs/crystal.toml)), or pass `--packs-dir` / `APO_PACKS_DIR`. Same `id` as a built-in **overrides** it. Dump builtins with `apo packs dump -o ./dir`.
 
 Optional repo overlay [`.apo.toml`](examples/apo.toml):
 

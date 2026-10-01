@@ -2,8 +2,9 @@
 
 use std::process::ExitCode;
 
-use apo::cli::Cli;
+use apo::cli::{Cli, Commands, PacksCommands};
 use apo::config::AnalyzerMode;
+use apo::packs::dump_builtin_packs;
 use apo::report::{
     evidence_json_to_string, json_to_string, pack_json_to_string, render_evidence_llm_prompt,
     render_llm_prompt, render_pack_llm_prompt,
@@ -22,6 +23,25 @@ fn main() -> ExitCode {
         .init();
 
     let cli = Cli::parse();
+
+    if let Commands::Packs { command } = &cli.command {
+        return match command {
+            PacksCommands::Dump { output, id } => match dump_builtin_packs(output, id.as_deref()) {
+                Ok(written) => {
+                    eprintln!("apo: dumped {} built-in pack(s)", written.len());
+                    for path in &written {
+                        eprintln!("wrote {}", path.display());
+                    }
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("error: {e}");
+                    ExitCode::FAILURE
+                }
+            },
+        };
+    }
+
     let config = match cli.into_config() {
         Ok(c) => c,
         Err(e) => {

@@ -488,7 +488,6 @@ fn evidence_analyzer_detects_knowledge_and_ai() {
 #[test]
 fn external_pack_from_apo_packs_dir_activates() {
     use apo::evidence::Status;
-    use apo::packs::{load_packs_from_dir, merge_pack_catalog};
 
     let dir = tempdir().unwrap();
     let root = dir.path();
@@ -533,19 +532,338 @@ ci_commands = ["ameba"]
         "expected Present/Enforced from external crystal pack, got {:?}",
         linter.status
     );
+    assert!(
+        report.transparency.overridden_packs.is_empty(),
+        "new pack id must not count as a builtin override"
+    );
+}
 
-    // Conflict with builtin id must error
-    let conflict_dir = tempdir().unwrap();
+#[test]
+fn merge_pack_catalog_reports_overridden_builtin_ids() {
+    use apo::packs::{load_packs_from_dir, merge_pack_catalog};
+
+    let override_dir = tempdir().unwrap();
     fs::write(
-        conflict_dir.path().join("rust.toml"),
+        override_dir.path().join("rust.toml"),
         r#"
 id = "rust"
 kind = "language"
 manifests = ["Cargo.toml"]
+
+[[tooling]]
+id = "lint"
+maps_to = "local_development.linter"
+configs = ["custom-clippy.toml"]
+ci_commands = ["cargo clippy"]
 "#,
     )
     .unwrap();
-    let external = load_packs_from_dir(conflict_dir.path()).unwrap();
-    let err = merge_pack_catalog(external).unwrap_err();
-    assert!(err.to_string().contains("conflicts"), "{err}");
+    let external = load_packs_from_dir(override_dir.path()).unwrap().0;
+    let (merged, overridden) = merge_pack_catalog(external);
+    assert_eq!(overridden, vec!["rust".to_string()]);
+    let rust = merged.iter().find(|p| p.id == "rust").expect("rust pack");
+    assert_eq!(rust.tooling.len(), 1);
+    assert_eq!(rust.tooling[0].id, "lint");
+    assert_eq!(
+        rust.tooling[0].configs,
+        vec!["custom-clippy.toml".to_string()]
+    );
+}
+
+#[test]
+fn rule_disable_via_config_excludes_finding_and_lists_in_report() {
+    use apo::evidence::Status;
+
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    init_repo(root);
+    write(root, "README.md", "# demo\n");
+    write(root, "src/main.rs", "fn main() {}\n");
+    commit_all(root, "feat: disable via config");
+
+    let with_rule = analyze(&Config {
+        target: root.display().to_string(),
+        format: OutputFormat::Json,
+        badge: false,
+        ..Config::default()
+    })
+    .unwrap();
+    let license = with_rule
+        .findings
+        .iter()
+        .find(|f| f.rule == "documentation.license")
+        .expect("license finding present when enabled");
+    assert_eq!(license.status, Status::Missing);
+    assert!(with_rule.transparency.disabled_rules.is_empty());
+
+    let disabled = analyze(&Config {
+        target: root.display().to_string(),
+        format: OutputFormat::Both,
+        badge: false,
+        rule_disable: vec!["documentation.license".into()],
+        ..Config::default()
+    })
+    .unwrap();
+
+    assert!(
+        disabled
+            .findings
+            .iter()
+            .all(|f| f.rule != "documentation.license"),
+        "disabled rule must be absent from findings"
+    );
+    assert!(
+        !disabled
+            .missing_controls
+            .iter()
+            .any(|g| g == "documentation.license"),
+        "disabled rule must not appear as a gap"
+    );
+    assert_eq!(
+        disabled.transparency.disabled_rules,
+        vec!["documentation.license".to_string()]
+    );
+    assert!(disabled.executive_summary.contains("1 disabled rule(s)"));
+
+    let md = apo::report::render_markdown(&disabled);
+    assert!(md.contains("## Transparency"));
+    assert!(md.contains("### Disabled rules"));
+    assert!(md.contains("`documentation.license`"));
+
+    let json = apo::report::json_to_string(&disabled).unwrap();
+    assert!(json.contains("\"disabled_rules\""));
+    assert!(json.contains("documentation.license"));
+}
+
+#[test]
+fn rule_disable_from_apo_toml_applies_and_lists_in_report() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    init_repo(root);
+    write(root, "README.md", "# demo\n");
+    write(root, "src/main.rs", "fn main() {}\n");
+    write(
+        root,
+        ".apo.toml",
+        r#"
+[analyze]
+rule_disable = ["documentation.license", "collaboration.maintenance_activity"]
+"#,
+    );
+    commit_all(root, "feat: disable via apo.toml");
+
+    let report = analyze(&Config {
+        target: root.display().to_string(),
+        format: OutputFormat::Json,
+        badge: false,
+        ..Config::default()
+    })
+    .unwrap();
+
+    assert!(report.findings.iter().all(
+        |f| f.rule != "documentation.license" && f.rule != "collaboration.maintenance_activity"
+    ));
+    assert_eq!(
+        report.transparency.disabled_rules,
+        vec![
+            "collaboration.maintenance_activity".to_string(),
+            "documentation.license".to_string(),
+        ]
+    );
+}
+
+#[test]
+fn pack_override_replaces_builtin_detection_and_lists_in_report() {
+    use apo::evidence::Status;
+
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    init_repo(root);
+    write(root, "README.md", "# demo\n");
+    write(
+        root,
+        "Cargo.toml",
+        "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    );
+    write(root, "src/lib.rs", "");
+    // Only the override needle exists — builtin rust pack looks for clippy.toml, not this.
+    write(
+        root,
+        "custom-clippy.toml",
+        "avoid-breaking-exported-api = false\n",
+    );
+    write(
+        root,
+        ".apo/packs/rust.toml",
+        r#"
+id = "rust"
+kind = "language"
+manifests = ["Cargo.toml"]
+
+[[tooling]]
+id = "lint"
+maps_to = "local_development.linter"
+configs = ["custom-clippy.toml"]
+ci_commands = ["cargo clippy"]
+"#,
+    );
+    commit_all(root, "feat: override rust pack");
+
+    let report = analyze(&Config {
+        target: root.display().to_string(),
+        format: OutputFormat::Both,
+        badge: false,
+        ..Config::default()
+    })
+    .unwrap();
+
+    assert_eq!(
+        report.transparency.overridden_packs,
+        vec!["rust".to_string()]
+    );
+
+    let linter = report
+        .findings
+        .iter()
+        .find(|f| f.rule == "local_development.linter")
+        .expect("linter finding");
+    assert!(
+        matches!(linter.status, Status::Present | Status::Enforced),
+        "override config custom-clippy.toml should satisfy linter, got {:?}",
+        linter.status
+    );
+    assert!(
+        linter
+            .evidence
+            .iter()
+            .any(|e| e.path.as_deref() == Some("custom-clippy.toml")),
+        "evidence should cite the overridden pack config path"
+    );
+
+    let md = apo::report::render_markdown(&report);
+    assert!(md.contains("## Transparency"));
+    assert!(md.contains("### Overridden packs"));
+    assert!(md.contains("`rust`"));
+
+    let json = apo::report::json_to_string(&report).unwrap();
+    assert!(json.contains("\"overridden_packs\""));
+    assert!(json.contains("\"rust\""));
+}
+
+#[test]
+fn pack_override_without_custom_config_does_not_use_builtin_needles() {
+    use apo::evidence::Status;
+
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    init_repo(root);
+    write(root, "README.md", "# demo\n");
+    write(
+        root,
+        "Cargo.toml",
+        "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    );
+    write(root, "src/lib.rs", "");
+    // Builtin would match clippy.toml; override only looks for custom-clippy.toml.
+    write(root, "clippy.toml", "msrv = \"1.85\"\n");
+    write(
+        root,
+        ".apo/packs/rust.toml",
+        r#"
+id = "rust"
+kind = "language"
+manifests = ["Cargo.toml"]
+
+[[tooling]]
+id = "lint"
+maps_to = "local_development.linter"
+configs = ["custom-clippy.toml"]
+ci_commands = ["cargo clippy"]
+"#,
+    );
+    commit_all(root, "feat: override ignores builtin needle");
+
+    let report = analyze(&Config {
+        target: root.display().to_string(),
+        format: OutputFormat::Json,
+        badge: false,
+        ..Config::default()
+    })
+    .unwrap();
+
+    assert_eq!(
+        report.transparency.overridden_packs,
+        vec!["rust".to_string()]
+    );
+    let linter = report
+        .findings
+        .iter()
+        .find(|f| f.rule == "local_development.linter")
+        .expect("linter finding");
+    assert_eq!(
+        linter.status,
+        Status::Missing,
+        "builtin clippy.toml must not satisfy an override that only lists custom-clippy.toml"
+    );
+}
+
+#[test]
+fn skipped_unknown_maps_to_listed_in_transparency() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    init_repo(root);
+    write(root, "README.md", "# demo\n");
+    write(root, "src/main.rs", "fn main() {}\n");
+    write(
+        root,
+        ".apo/packs/crystal.toml",
+        r#"
+id = "crystal"
+kind = "language"
+manifests = ["shard.yml"]
+
+[[tooling]]
+id = "bogus"
+maps_to = "not.a.real.rule"
+configs = ["x"]
+"#,
+    );
+    write(
+        root,
+        ".apo.toml",
+        r#"
+[[tooling]]
+id = "overlay-bad"
+maps_to = "also.not.real"
+configs = ["y"]
+"#,
+    );
+    commit_all(root, "feat: skipped tooling");
+
+    let report = analyze(&Config {
+        target: root.display().to_string(),
+        format: OutputFormat::Json,
+        badge: false,
+        ..Config::default()
+    })
+    .unwrap();
+
+    assert!(
+        report
+            .transparency
+            .skipped_tooling
+            .iter()
+            .any(|s| s.id == "bogus" && s.maps_to == "not.a.real.rule")
+    );
+    assert!(
+        report
+            .transparency
+            .skipped_tooling
+            .iter()
+            .any(|s| s.id == "overlay-bad" && s.source == "overlay")
+    );
+
+    let md = apo::report::render_markdown(&report);
+    assert!(md.contains("### Skipped tooling"));
+    assert!(md.contains("bogus"));
 }
