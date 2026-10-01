@@ -329,6 +329,11 @@ pub fn write_evidence_report(
                 (OutputFormat::Json, parent.join(format!("{stem}.json"))),
             ]
         }
+        (OutputFormat::Sarif, _) => {
+            return Err(crate::error::Error::Config(
+                "SARIF export requires `apo report` (unified pack)".into(),
+            ));
+        }
     };
 
     let mut written = Vec::new();
@@ -339,7 +344,7 @@ pub fn write_evidence_report(
         match fmt {
             OutputFormat::Markdown => write_evidence_markdown(report, &path)?,
             OutputFormat::Json => write_evidence_json(report, &path)?,
-            OutputFormat::Both => unreachable!(),
+            OutputFormat::Sarif | OutputFormat::Both => unreachable!(),
         }
         written.push(path);
     }

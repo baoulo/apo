@@ -329,6 +329,7 @@ mod tests {
             ],
             recommendations: vec![],
             findings,
+            transparency: Default::default(),
         }
     }
 

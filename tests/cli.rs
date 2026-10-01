@@ -257,3 +257,130 @@ fn evidence_writes_badge_and_no_badge_skips() {
         "expected no badge when --no-badge: {entries2:?}"
     );
 }
+
+#[test]
+fn report_writes_unified_pack_json_and_sarif() {
+    let dir = tempdir().unwrap();
+    init_tiny_repo(dir.path());
+    let out = dir.path().join("pack-out");
+    fs::create_dir_all(&out).unwrap();
+
+    cargo_bin_cmd!("apo")
+        .args([
+            "report",
+            dir.path().to_str().unwrap(),
+            "--format",
+            "both",
+            "--output",
+            out.to_str().unwrap(),
+            "--sarif",
+            "--no-badge",
+        ])
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("apo-v0.3"));
+
+    let entries: Vec<_> = fs::read_dir(&out)
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .collect();
+    assert!(
+        entries
+            .iter()
+            .any(|n| n.ends_with("-repository-evidence-pack.json")),
+        "missing pack json: {entries:?}"
+    );
+    assert!(
+        entries
+            .iter()
+            .any(|n| n.ends_with("-repository-evidence-pack.md")),
+        "missing pack md: {entries:?}"
+    );
+    assert!(
+        entries
+            .iter()
+            .any(|n| n.ends_with("-repository-evidence-pack.sarif")),
+        "missing sarif: {entries:?}"
+    );
+    let json_path = entries
+        .iter()
+        .find(|n| n.ends_with("-repository-evidence-pack.json"))
+        .unwrap();
+    let body = fs::read_to_string(out.join(json_path)).unwrap();
+    assert!(body.contains("\"evidence_schema\": \"apo-v0.3\""));
+    assert!(body.contains("\"analyzer\": \"repository-evidence-pack\""));
+}
+
+#[test]
+fn report_baseline_emits_diff() {
+    let dir = tempdir().unwrap();
+    init_tiny_repo(dir.path());
+    let out1 = dir.path().join("b1");
+    let out2 = dir.path().join("b2");
+    fs::create_dir_all(&out1).unwrap();
+    fs::create_dir_all(&out2).unwrap();
+
+    cargo_bin_cmd!("apo")
+        .args([
+            "report",
+            dir.path().to_str().unwrap(),
+            "--format",
+            "json",
+            "--output",
+            out1.to_str().unwrap(),
+            "--no-badge",
+        ])
+        .assert()
+        .success();
+
+    let baseline = fs::read_dir(&out1)
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .map(|e| e.path())
+        .find(|p| {
+            p.file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| n.ends_with("-repository-evidence-pack.json"))
+        })
+        .expect("baseline json");
+
+    cargo_bin_cmd!("apo")
+        .args([
+            "report",
+            dir.path().to_str().unwrap(),
+            "--format",
+            "json",
+            "--output",
+            out2.to_str().unwrap(),
+            "--baseline",
+            baseline.to_str().unwrap(),
+            "--no-badge",
+        ])
+        .assert()
+        .success();
+
+    let pack_path = fs::read_dir(&out2)
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .map(|e| e.path())
+        .find(|p| {
+            p.file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| n.ends_with("-repository-evidence-pack.json"))
+        })
+        .unwrap();
+    let body = fs::read_to_string(pack_path).unwrap();
+    assert!(body.contains("\"diff\""));
+    assert!(body.contains("hygiene_score_delta"));
+    assert!(
+        fs::read_dir(&out2)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .any(|e| e
+                .file_name()
+                .to_string_lossy()
+                .ends_with("-repository-evidence-pack-diff.md")),
+        "expected diff markdown"
+    );
+}

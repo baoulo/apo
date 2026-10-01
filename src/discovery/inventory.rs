@@ -178,6 +178,8 @@ pub struct RepoContext {
     pub inventory: Inventory,
     /// Git metadata snapshot.
     pub git: GitMeta,
+    /// Resolved language/web pack tooling (builtins + external + overlays).
+    pub tooling: crate::packs::ResolvedTooling,
     /// Lazily cached file contents (relative path → text).
     content_cache: std::sync::Mutex<HashMap<String, Option<String>>>,
 }
@@ -188,6 +190,7 @@ impl RepoContext {
             root,
             inventory,
             git,
+            tooling: crate::packs::ResolvedTooling::default(),
             content_cache: std::sync::Mutex::new(HashMap::new()),
         }
     }

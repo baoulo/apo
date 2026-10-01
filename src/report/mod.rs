@@ -1,4 +1,4 @@
-//! Report generation (JSON + Markdown + LLM remediation prompt + evidence).
+//! Report generation (JSON + Markdown + LLM remediation prompt + evidence + pack).
 
 mod badge;
 mod evidence_prompt;
@@ -7,7 +7,12 @@ mod evidence_write;
 mod json;
 mod markdown;
 mod names;
+mod pack;
+mod pack_diff;
+mod pack_write;
 mod prompt;
+mod sarif;
+mod transparency;
 
 pub use badge::{
     evidence_badge_svg, hygiene_badge_svg, resolve_badge_path, score_color, write_evidence_badge,
@@ -22,16 +27,25 @@ pub use evidence_write::{
     write_evidence_report,
 };
 pub use json::{to_string as json_to_string, write_json};
-pub use markdown::write_markdown;
+pub use markdown::{render_markdown, write_markdown};
 pub use names::{repo_name_from_label, sanitize_repo_name};
+pub use pack::{EVIDENCE_SCHEMA, EvidencePack, PackDiff};
+pub use pack_diff::{apply_baseline, render_diff_markdown};
+pub use pack_write::{
+    pack_json_to_string, render_pack_llm_prompt, render_pack_markdown, resolve_pack_prompt_path,
+    write_pack_badges, write_pack_diff_markdown, write_pack_json, write_pack_llm_prompt,
+    write_pack_markdown, write_pack_report,
+};
 pub use prompt::{render_llm_prompt, resolve_prompt_path, write_llm_prompt};
+pub use sarif::{pack_to_sarif, write_sarif};
+pub use transparency::{SkippedToolingNote, Transparency};
 
 use serde::{Deserialize, Serialize};
 
 use crate::config::OutputFormat;
 use crate::discovery::RepoContext;
 use crate::error::Result;
-use crate::evidence::Finding;
+use crate::evidence::{Finding, Status};
 use crate::policy::PolicyResult;
 use crate::source::Workspace;
 
@@ -58,12 +72,15 @@ pub struct Report {
     pub executive_summary: String,
     /// Policy scores.
     pub policy: PolicyResult,
-    /// All findings.
+    /// All findings (excludes disabled rules).
     pub findings: Vec<Finding>,
     /// Missing / gap controls (rule ids).
     pub missing_controls: Vec<String>,
     /// Recommendations.
     pub recommendations: Vec<String>,
+    /// Disabled / overridden / skipped inputs for transparency.
+    #[serde(default, skip_serializing_if = "Transparency::is_empty")]
+    pub transparency: Transparency,
 }
 
 impl Report {
@@ -73,6 +90,7 @@ impl Report {
         findings: Vec<Finding>,
         policy: PolicyResult,
         workspace: &Workspace,
+        mut transparency: Transparency,
     ) -> Self {
         let overall = policy
             .overall_score
@@ -81,21 +99,43 @@ impl Report {
 
         let enforced = findings
             .iter()
-            .filter(|f| f.status == crate::evidence::Status::Enforced)
+            .filter(|f| f.status == Status::Enforced)
             .count();
         let present = findings
             .iter()
-            .filter(|f| f.status == crate::evidence::Status::Present)
+            .filter(|f| f.status == Status::Present)
             .count();
         let gaps = policy.gaps.len();
 
-        let executive_summary = format!(
+        transparency.not_applicable_rules = findings
+            .iter()
+            .filter(|f| f.status == Status::NotApplicable)
+            .map(|f| f.rule.clone())
+            .collect();
+        transparency
+            .overridden_packs
+            .clone_from(&ctx.tooling.overridden_packs);
+        transparency
+            .skipped_tooling
+            .clone_from(&ctx.tooling.skipped_tooling);
+        transparency.sort();
+
+        let mut executive_summary = format!(
             "Repository hygiene analysis of `{}` scored {overall}. \
              Observed {enforced} enforced, {present} present, and {gaps} gap signal(s) across {} rules. \
              Findings are observational evidence only; scores are derived by policy weights.",
             workspace.label,
             findings.len(),
         );
+        if !transparency.is_empty() {
+            executive_summary.push_str(&format!(
+                " Transparency: {} disabled rule(s), {} overridden pack(s), {} skipped tooling, {} not-applicable.",
+                transparency.disabled_rules.len(),
+                transparency.overridden_packs.len(),
+                transparency.skipped_tooling.len(),
+                transparency.not_applicable_rules.len(),
+            ));
+        }
 
         let missing_controls = policy.gaps.clone();
         let recommendations = policy.recommendations.clone();
@@ -114,6 +154,7 @@ impl Report {
             findings,
             missing_controls,
             recommendations,
+            transparency,
         }
     }
 }
@@ -178,6 +219,9 @@ pub fn resolve_outputs(
                 ])
             }
         }
+        (OutputFormat::Sarif, _) => Err(crate::error::Error::Config(
+            "SARIF export requires `apo report` (unified pack)".into(),
+        )),
     }
 }
 
@@ -197,7 +241,9 @@ pub fn write_report(
         match fmt {
             OutputFormat::Markdown => write_markdown(report, &path)?,
             OutputFormat::Json => write_json(report, &path)?,
-            OutputFormat::Both => unreachable!("resolved to concrete formats"),
+            OutputFormat::Sarif | OutputFormat::Both => {
+                unreachable!("resolved to concrete formats")
+            }
         }
         written.push(path);
     }

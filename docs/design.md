@@ -4,8 +4,11 @@
 
 Each hygiene rule returns a `Status` (`Missing`, `Partial`, `Present`,
 `Enforced`, `Unknown`, …). The policy layer maps statuses to category scores and
-an overall score. Knowledge and AI maturity use separate coverage / risk
-formulas over classified artifacts.
+an overall score. The full rule list is in [hygiene-controls.md](hygiene-controls.md).
+Knowledge maturity mixes coverage, freshness, link health, and CODEOWNERS
+([knowledge-artifacts.md](knowledge-artifacts.md)). AI maturity awards points for
+prompts, versioning, governance, human review, workflows, MCP, and agents
+([ai-adoption-signals.md](ai-adoption-signals.md)).
 
 ## Pack overlays
 

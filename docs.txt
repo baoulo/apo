@@ -1,0 +1,10 @@
+total 56
+drwxr-xr-x@ 3 thanos  staff    96 Sep 30 15:29 adr
+-rw-r--r--@ 1 thanos  staff   963 Sep 30 15:29 ai-governance.md
+-rw-r--r--@ 1 thanos  staff   686 Sep 30 15:29 api.md
+drwxr-xr-x@ 4 thanos  staff   128 Sep 30 15:29 badges
+-rw-r--r--@ 1 thanos  staff   942 Oct  1 09:52 design.md
+-rw-r--r--@ 1 thanos  staff  3758 Sep 30 15:29 eating-our-own-dog-food.md
+-rw-r--r--@ 1 thanos  staff   916 Oct  1 09:52 glossary.md
+-rw-r--r--@ 1 thanos  staff  6807 Oct  1 09:52 hygiene-controls.md
+drwxr-xr-x@ 3 thanos  staff    96 Sep 30 15:29 runbooks
