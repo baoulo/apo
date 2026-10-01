@@ -23,6 +23,9 @@ pub enum MapsTo {
     TypeCheckingCi,
     DocTooling,
     SecretScanning,
+    PropertyTesting,
+    IntegrationTesting,
+    UiTesting,
 }
 
 impl MapsTo {
@@ -37,6 +40,9 @@ impl MapsTo {
             Self::TypeCheckingCi => "testing.type_checking_ci",
             Self::DocTooling => "documentation.doc_tooling",
             Self::SecretScanning => "security.secret_scanning",
+            Self::PropertyTesting => "testing.property",
+            Self::IntegrationTesting => "testing.integration",
+            Self::UiTesting => "testing.ui",
         }
     }
 
@@ -51,6 +57,9 @@ impl MapsTo {
             "testing.type_checking_ci" => Some(Self::TypeCheckingCi),
             "documentation.doc_tooling" => Some(Self::DocTooling),
             "security.secret_scanning" => Some(Self::SecretScanning),
+            "testing.property" => Some(Self::PropertyTesting),
+            "testing.integration" => Some(Self::IntegrationTesting),
+            "testing.ui" => Some(Self::UiTesting),
             _ => None,
         }
     }

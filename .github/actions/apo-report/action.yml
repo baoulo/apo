@@ -1,0 +1,166 @@
+name: APO report
+description: Run apo report (unified evidence pack), optional baseline/SARIF, PR summary, and upload artifacts
+inputs:
+  target:
+    description: Repository path to analyze
+    required: false
+    default: "."
+  version:
+    description: apo release version (empty = latest). Ignored when use-local-binary is true.
+    required: false
+    default: ""
+  use-local-binary:
+    description: If true, use ./target/release/apo from a prior build step
+    required: false
+    default: "false"
+  baseline:
+    description: Optional path to prior pack JSON for score/gap diffs
+    required: false
+    default: ""
+  format:
+    description: Output format (markdown, json, both, sarif)
+    required: false
+    default: "both"
+  llm-prompt:
+    description: Also write combined LLM remediation prompt
+    required: false
+    default: "false"
+  badge-output:
+    description: Directory or path for SVG badges
+    required: false
+    default: "docs/badges"
+  write-sarif:
+    description: Also write SARIF for Code Scanning
+    required: false
+    default: "true"
+  fail-on-score:
+    description: Optional hygiene score threshold (empty = disabled)
+    required: false
+    default: ""
+  output:
+    description: Output directory for pack artifacts
+    required: false
+    default: "out/apo-report"
+  comment-pr:
+    description: Post a PR comment summary when running on pull_request
+    required: false
+    default: "true"
+outputs:
+  pack-json:
+    description: Path to pack JSON if written
+    value: ${{ steps.run.outputs.pack-json }}
+  sarif:
+    description: Path to SARIF if written
+    value: ${{ steps.run.outputs.sarif }}
+runs:
+  using: composite
+  steps:
+    - name: Setup apo
+      if: inputs.use-local-binary != 'true'
+      uses: baoulo/apo/.github/actions/setup-apo@main
+      with:
+        version: ${{ inputs.version }}
+
+    - name: Run apo report
+      id: run
+      shell: bash
+      env:
+        TARGET: ${{ inputs.target }}
+        FORMAT: ${{ inputs.format }}
+        OUTPUT: ${{ inputs.output }}
+        BASELINE: ${{ inputs.baseline }}
+        BADGE_OUTPUT: ${{ inputs.badge-output }}
+        WRITE_SARIF: ${{ inputs.write-sarif }}
+        LLM_PROMPT: ${{ inputs.llm-prompt }}
+        FAIL_ON: ${{ inputs.fail-on-score }}
+        USE_LOCAL: ${{ inputs.use-local-binary }}
+      run: |
+        set -euo pipefail
+        mkdir -p "${OUTPUT}"
+        if [[ "${USE_LOCAL}" == "true" ]]; then
+          if [[ -x ./target/release/apo ]]; then
+            APO=./target/release/apo
+          elif [[ -x ./target/release/apo.exe ]]; then
+            APO=./target/release/apo.exe
+          else
+            echo "error: use-local-binary set but ./target/release/apo not found" >&2
+            exit 1
+          fi
+        else
+          APO=apo
+        fi
+
+        ARGS=(report "${TARGET}" --format "${FORMAT}" --output "${OUTPUT}")
+        if [[ -n "${BADGE_OUTPUT}" ]]; then
+          mkdir -p "${BADGE_OUTPUT}"
+          ARGS+=(--badge-output "${BADGE_OUTPUT}")
+        fi
+        if [[ -n "${BASELINE}" ]]; then
+          ARGS+=(--baseline "${BASELINE}")
+        fi
+        if [[ "${WRITE_SARIF}" == "true" ]]; then
+          ARGS+=(--sarif)
+        fi
+        if [[ "${LLM_PROMPT}" == "true" ]]; then
+          ARGS+=(--llm-prompt)
+        fi
+        if [[ -n "${FAIL_ON}" ]]; then
+          ARGS+=(--fail-on-score "${FAIL_ON}")
+        fi
+
+        "${APO}" "${ARGS[@]}"
+
+        JSON=$(ls -1 "${OUTPUT}"/*-repository-evidence-pack.json 2>/dev/null | head -1 || true)
+        SARIF=$(ls -1 "${OUTPUT}"/*-repository-evidence-pack.sarif 2>/dev/null | head -1 || true)
+        echo "pack-json=${JSON}" >> "$GITHUB_OUTPUT"
+        echo "sarif=${SARIF}" >> "$GITHUB_OUTPUT"
+
+    - name: Upload APO pack artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: apo-evidence-pack
+        path: |
+          ${{ inputs.output }}/
+          ${{ inputs.badge-output }}/
+        if-no-files-found: warn
+
+    - name: PR summary comment
+      if: inputs.comment-pr == 'true' && github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      env:
+        OUTPUT_DIR: ${{ inputs.output }}
+      with:
+        script: |
+          const fs = require('fs');
+          const path = require('path');
+          const dir = process.env.OUTPUT_DIR;
+          let body = '## APO evidence pack\n\n';
+          try {
+            const files = fs.readdirSync(dir).filter(f => f.endsWith('-repository-evidence-pack.json'));
+            if (files.length === 0) {
+              body += '_No pack JSON found._\n';
+            } else {
+              const pack = JSON.parse(fs.readFileSync(path.join(dir, files[0]), 'utf8'));
+              const h = pack.hygiene?.policy?.overall_score;
+              body += `- **Schema:** \`${pack.evidence_schema}\`\n`;
+              body += `- **Hygiene:** ${h != null ? h.toFixed(1) : 'n/a'}/100\n`;
+              body += `- **Knowledge:** ${Number(pack.evidence?.knowledge_maturity ?? 0).toFixed(1)}/100\n`;
+              body += `- **AI:** ${Number(pack.evidence?.ai_maturity ?? 0).toFixed(1)}/100\n`;
+              const gaps = (pack.hygiene?.missing_controls || []).slice(0, 8);
+              if (gaps.length) {
+                body += `\n### Top hygiene gaps\n` + gaps.map(g => `- \`${g}\``).join('\n') + '\n';
+              }
+              if (pack.diff?.summary) {
+                body += `\n### Baseline\n${pack.diff.summary}\n`;
+              }
+            }
+          } catch (e) {
+            body += `_Failed to read pack: ${e.message}_\n`;
+          }
+          body += `\n_Artifacts uploaded as \`apo-evidence-pack\`._\n`;
+          await github.rest.issues.createComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+            body
+          });

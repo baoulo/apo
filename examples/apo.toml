@@ -2,13 +2,32 @@
 #
 # Copy to the repository root as `.apo.toml` to force packs or add custom tooling needles.
 # Detection remains observational — APO does not execute these commands.
+# CLI flags override these defaults.
 
 [ecosystem]
-# languages = ["elixir"]
+# languages = ["elixir", "cobol", "fortran", "pascal"]
 # web = ["nextjs", "playwright"]
+
+[report]
+# format = "both"          # md | json | both | sarif
+# schema = "apo-v0.3"
+
+[analyze]
+# commit_sample_limit = 100
+# rule_disable = ["collaboration.maintenance_activity"]
+
+[ollama]
+enabled = false
+# url = "http://127.0.0.1:11434"
+# model = "llama3.2"
 
 # [[tooling]]
 # id = "elixir.credo"
 # maps_to = "local_development.linter"
 # configs = [".credo.exs"]
 # ci_commands = ["mix credo --strict"]
+
+# [[tooling]]
+# id = "custom.property"
+# maps_to = "testing.property"
+# ci_commands = ["proptest"]

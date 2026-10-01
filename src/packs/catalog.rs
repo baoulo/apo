@@ -76,6 +76,8 @@ static PACKS: &[PackDef] = &[
             tool!("docs", MapsTo::DocTooling, configs: [], ci: ["cargo doc"]),
             tool!("static", MapsTo::StaticAnalysisCi, configs: [], ci: ["cargo clippy", "cargo deny"]),
             tool!("types_ci", MapsTo::TypeCheckingCi, configs: [], ci: ["cargo check", "cargo build"]),
+            tool!("property", MapsTo::PropertyTesting, configs: [], ci: ["proptest", "cargo test"]),
+            tool!("integration", MapsTo::IntegrationTesting, configs: [], ci: ["integration"]),
         ],
     },
     PackDef {
@@ -121,6 +123,8 @@ static PACKS: &[PackDef] = &[
             tool!("test", MapsTo::TestFramework, configs: ["pytest.ini", "tox.ini", "pyproject.toml"], ci: ["pytest", "unittest", "tox", "nox"]),
             tool!("types_ci", MapsTo::TypeCheckingCi, configs: [], ci: ["mypy", "pyright"]),
             tool!("static", MapsTo::StaticAnalysisCi, configs: [], ci: ["ruff", "flake8", "pylint", "bandit"]),
+            tool!("property", MapsTo::PropertyTesting, configs: ["pyproject.toml"], ci: ["hypothesis", "pytest"]),
+            tool!("integration", MapsTo::IntegrationTesting, configs: [], ci: ["integration", "testcontainers"]),
         ],
     },
     PackDef {
@@ -222,6 +226,8 @@ static PACKS: &[PackDef] = &[
             tool!("test", MapsTo::TestFramework, configs: [], ci: ["mix test"]),
             tool!("doctor", MapsTo::DocTooling, configs: [], ci: ["mix doctor --full", "mix doctor"]),
             tool!("docs", MapsTo::DocTooling, configs: [], ci: ["mix docs --warnings-as-errors", "mix docs"]),
+            tool!("property", MapsTo::PropertyTesting, configs: [], ci: ["stream_data", "propcheck"]),
+            tool!("integration", MapsTo::IntegrationTesting, configs: [], ci: ["integration"]),
         ],
     },
     // ——— Tier B ———
@@ -533,6 +539,50 @@ static PACKS: &[PackDef] = &[
             tool!("static", MapsTo::StaticAnalysisCi, configs: [], ci: ["deadnix", "statix"]),
         ],
     },
+    // ——— Legacy language packs (observational) ———
+    PackDef {
+        id: "cobol",
+        kind: super::PackKind::Language,
+        manifests: &[],
+        path_contains: &[".cob", ".cbl"],
+        basename_any: &[],
+        package_json_contains: &[],
+        tooling: &[
+            tool!("format", MapsTo::Formatter, configs: [], ci: ["cobol-format", "cobc"]),
+            tool!("lint", MapsTo::Linter, configs: [], ci: ["cobolci", "gnucobol", "cobc"]),
+            tool!("test", MapsTo::TestFramework, configs: [], ci: ["cobolci", "cobc", "make test"]),
+            tool!("types_ci", MapsTo::TypeCheckingCi, configs: [], ci: ["cobc", "cobolci"]),
+        ],
+    },
+    PackDef {
+        id: "fortran",
+        kind: super::PackKind::Language,
+        manifests: &["fpm.toml"],
+        path_contains: &[".f90", ".f95", ".f03", ".f08"],
+        basename_any: &[],
+        package_json_contains: &[],
+        tooling: &[
+            tool!("format", MapsTo::Formatter, configs: [], ci: ["fprettify", "findent"]),
+            tool!("lint", MapsTo::Linter, configs: [], ci: ["fortitude", "flinter", "fortran-linter"]),
+            tool!("test", MapsTo::TestFramework, configs: ["fpm.toml"], ci: ["fpm test"]),
+            tool!("types_ci", MapsTo::TypeCheckingCi, configs: [], ci: ["fpm build", "cmake"]),
+            tool!("static", MapsTo::StaticAnalysisCi, configs: [], ci: ["fortitude", "flinter"]),
+        ],
+    },
+    PackDef {
+        id: "pascal",
+        kind: super::PackKind::Language,
+        manifests: &[],
+        path_contains: &[".pas", ".lpr", ".dpr", ".lpi"],
+        basename_any: &[],
+        package_json_contains: &[],
+        tooling: &[
+            tool!("format", MapsTo::Formatter, configs: [], ci: ["ptop", "jedi"]),
+            tool!("lint", MapsTo::Linter, configs: [], ci: ["fpc", "pasdoc"]),
+            tool!("test", MapsTo::TestFramework, configs: [], ci: ["fpc", "lazbuild", "make test"]),
+            tool!("types_ci", MapsTo::TypeCheckingCi, configs: [], ci: ["fpc", "lazbuild"]),
+        ],
+    },
     // ——— Web ecosystems (additive) ———
     PackDef {
         id: "react",
@@ -673,6 +723,7 @@ static PACKS: &[PackDef] = &[
         package_json_contains: &[],
         tooling: &[
             tool!("e2e", MapsTo::TestFramework, configs: ["playwright.config.ts", "playwright.config.js"], ci: ["playwright test", "npx playwright"]),
+            tool!("ui", MapsTo::UiTesting, configs: ["playwright.config.ts", "playwright.config.js"], ci: ["playwright test", "npx playwright"]),
         ],
     },
     PackDef {
@@ -684,6 +735,7 @@ static PACKS: &[PackDef] = &[
         package_json_contains: &[],
         tooling: &[
             tool!("e2e", MapsTo::TestFramework, configs: ["cypress.config.ts", "cypress.config.js"], ci: ["cypress run", "cypress open"]),
+            tool!("ui", MapsTo::UiTesting, configs: ["cypress.config.ts", "cypress.config.js", "cypress.json"], ci: ["cypress run", "cypress open"]),
         ],
     },
     PackDef {
@@ -719,9 +771,12 @@ mod tests {
             "playwright",
             "nix",
             "solidity",
+            "cobol",
+            "fortran",
+            "pascal",
         ] {
             assert!(ids.contains(&need), "missing pack {need}");
         }
-        assert!(builtin_packs().len() >= 30);
+        assert!(builtin_packs().len() >= 33);
     }
 }

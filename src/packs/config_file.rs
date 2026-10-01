@@ -1,4 +1,4 @@
-//! `.apo.toml` project overlays for tooling detection.
+//! `.apo.toml` project overlays for tooling detection and analysis defaults.
 
 use std::path::Path;
 
@@ -13,6 +13,12 @@ pub struct ApoProjectConfig {
     pub ecosystem: EcosystemSection,
     #[serde(default)]
     pub tooling: Vec<ToolingOverlay>,
+    #[serde(default)]
+    pub report: ReportSection,
+    #[serde(default)]
+    pub analyze: AnalyzeSection,
+    #[serde(default)]
+    pub ollama: OllamaSection,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -23,6 +29,35 @@ pub struct EcosystemSection {
     /// Force-enable web pack ids.
     #[serde(default)]
     pub web: Vec<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ReportSection {
+    /// Default output format: md | json | both | sarif.
+    #[serde(default)]
+    pub format: Option<String>,
+    /// Schema label (informational; packs always emit apo-v0.3).
+    #[serde(default)]
+    pub schema: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct AnalyzeSection {
+    #[serde(default)]
+    pub commit_sample_limit: Option<usize>,
+    /// Rule ids to exclude from hygiene evaluation.
+    #[serde(default)]
+    pub rule_disable: Vec<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct OllamaSection {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub url: Option<String>,
+    #[serde(default)]
+    pub model: Option<String>,
 }
 
 /// User-defined tooling detection overlay.
@@ -84,6 +119,19 @@ mod tests {
 [ecosystem]
 languages = ["rust"]
 
+[report]
+format = "both"
+schema = "apo-v0.3"
+
+[analyze]
+commit_sample_limit = 50
+rule_disable = ["collaboration.maintenance_activity"]
+
+[ollama]
+enabled = false
+url = "http://127.0.0.1:11434"
+model = "llama3.2"
+
 [[tooling]]
 id = "custom.docs"
 maps_to = "documentation.doc_tooling"
@@ -95,6 +143,12 @@ ci_commands = ["cargo doc"]
         assert_eq!(cfg.ecosystem.languages, vec!["rust"]);
         assert_eq!(cfg.tooling.len(), 1);
         assert_eq!(cfg.tooling[0].id, "custom.docs");
+        assert_eq!(cfg.report.format.as_deref(), Some("both"));
+        assert_eq!(cfg.analyze.commit_sample_limit, Some(50));
+        assert_eq!(
+            cfg.analyze.rule_disable,
+            vec!["collaboration.maintenance_activity"]
+        );
     }
 
     #[test]

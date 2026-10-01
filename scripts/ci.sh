@@ -46,10 +46,12 @@ fi
 # Dogfood: analyze this repo with the just-built apo binary.
 mkdir -p docs/badges out/apo-self
 run cargo build -q
-run ./target/debug/apo analyze . --format both --output out/apo-self \
-  --badge-output docs/badges/apo-hygiene.svg
-run ./target/debug/apo evidence . --format both --output out/apo-self \
-  --badge-output docs/badges/apo-evidence.svg
+run ./target/debug/apo report . --format both --output out/apo-self \
+  --badge-output docs/badges --sarif
+# Keep README-canonical badge filenames in sync
+cp -f docs/badges/*-repository-hygiene-badge.svg docs/badges/apo-hygiene.svg
+cp -f docs/badges/*-repository-evidence-badge.svg docs/badges/apo-evidence.svg
+rm -f docs/badges/*-repository-hygiene-badge.svg docs/badges/*-repository-evidence-badge.svg
 
 echo ""
 echo "All CI checks passed (including APO self-analysis → out/apo-self/, docs/badges/)."

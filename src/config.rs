@@ -13,6 +13,8 @@ pub enum OutputFormat {
     Json,
     /// Emit both Markdown and JSON.
     Both,
+    /// SARIF 2.1.0 (unified pack / Code Scanning).
+    Sarif,
 }
 
 impl OutputFormat {
@@ -22,8 +24,9 @@ impl OutputFormat {
             "md" | "markdown" => Ok(Self::Markdown),
             "json" => Ok(Self::Json),
             "both" => Ok(Self::Both),
+            "sarif" => Ok(Self::Sarif),
             other => Err(format!(
-                "unknown format '{other}'; expected markdown, json, or both"
+                "unknown format '{other}'; expected markdown, json, both, or sarif"
             )),
         }
     }
@@ -38,6 +41,8 @@ pub enum AnalyzerMode {
     Hygiene,
     /// Knowledge + AI evidence (v0.2).
     Evidence,
+    /// Unified hygiene + knowledge + AI pack (v0.3).
+    Pack,
 }
 
 /// Analysis configuration.
@@ -69,6 +74,14 @@ pub struct Config {
     pub badge: bool,
     /// Optional explicit badge output path (file or directory).
     pub badge_output: Option<std::path::PathBuf>,
+    /// Prior pack JSON for baseline diffs (`apo report --baseline`).
+    pub baseline: Option<std::path::PathBuf>,
+    /// Also write SARIF alongside other formats (when not already format=sarif).
+    pub write_sarif: bool,
+    /// Rule ids to skip (from `.apo.toml` `[analyze].rule_disable`).
+    pub rule_disable: Vec<String>,
+    /// Optional score threshold; CLI may fail when hygiene score is below this.
+    pub fail_on_score: Option<f64>,
 }
 
 impl Default for Config {
@@ -88,6 +101,10 @@ impl Default for Config {
             ollama_model: std::env::var("APO_OLLAMA_MODEL").unwrap_or_else(|_| "llama3.2".into()),
             badge: true,
             badge_output: None,
+            baseline: None,
+            write_sarif: false,
+            rule_disable: Vec::new(),
+            fail_on_score: None,
         }
     }
 }

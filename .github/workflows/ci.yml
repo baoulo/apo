@@ -147,13 +147,21 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --release
-      - name: Analyze this repository with apo
+      - name: Unified evidence pack (apo report)
+        uses: ./.github/actions/apo-report
+        with:
+          use-local-binary: "true"
+          target: "."
+          format: both
+          output: out/apo-self
+          badge-output: docs/badges
+          write-sarif: "true"
+          comment-pr: "false"
+      - name: Canonical README badge filenames
         run: |
-          mkdir -p docs/badges out/apo-self
-          ./target/release/apo analyze . --format both --output out/apo-self \
-            --badge-output docs/badges/apo-hygiene.svg
-          ./target/release/apo evidence . --format both --output out/apo-self \
-            --badge-output docs/badges/apo-evidence.svg
+          cp -f docs/badges/*-repository-hygiene-badge.svg docs/badges/apo-hygiene.svg
+          cp -f docs/badges/*-repository-evidence-badge.svg docs/badges/apo-evidence.svg
+          rm -f docs/badges/*-repository-hygiene-badge.svg docs/badges/*-repository-evidence-badge.svg
       - name: Upload self-analysis artifacts
         uses: actions/upload-artifact@v4
         with:

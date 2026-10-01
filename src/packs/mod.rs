@@ -5,7 +5,10 @@ mod config_file;
 mod resolve;
 
 pub use catalog::{PackDef, ToolingDef, builtin_packs, catalog_ids};
-pub use config_file::{ApoProjectConfig, ToolingOverlay};
+pub use config_file::{
+    AnalyzeSection, ApoProjectConfig, EcosystemSection, OllamaSection, ReportSection,
+    ToolingOverlay,
+};
 pub use resolve::{
     MapsTo, PackKind, ResolvedTooling, ToolingEntry, active_pack_ids, resolve_tooling,
 };

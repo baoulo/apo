@@ -8,14 +8,24 @@
 ![APO hygiene](docs/badges/apo-hygiene.svg)
 ![APO evidence](docs/badges/apo-evidence.svg)
 
-**APO** (from Greek *apothiki* — "storehouse") is an **Engineering Evidence Platform**.
+**APO** (from Greek *apothiki* — "storehouse") is an **Engineering Evidence Tool**.
 
-`apo` collects **objective engineering evidence** from a local Git repository or remote Git URI:
+You use `apo` to scan a git repository to make an inventory of Engineering evidence — what the repo already has on disk and in sampled Git/CI text:
+
+**Hygiene controls** — docs, editor/setup, tests/coverage gates, dependency & secret scanning signals, CI/release automation, CODEOWNERS/templates/commit conventions.
+**Knowledge artifacts** - README, ADRs, architecture/design, runbooks, API docs, glossaries, diagrams, onboarding, prompt libraries.
+**AI adoption signals** — prompts, agents, MCP configs, AI governance, AI-assisted workflow hints
+Then it turns that inventory into findings, scores, badges, and optional remediation prompts — without inventing controls or running your toolchains.
+
+`apo` with local or remote  Git repository. 
+
+Hygiene rules emit evidence only. A separate policy layer turns those observations into category and overall scores. Knowledge and AI analyzers stay deterministic by default; Ollama never invents evidence — it only narrates from analyzer outputs. Language packs observe configs and CI/script text; they do not run toolchains. APO does not grade “code quality” or run your tests.
 
 - **v0.1 — Repository Hygiene** — documentation, local development controls, testing gates, security/supply-chain signals, delivery automation, and collaboration practices
 - **v0.2 — Knowledge + AI Evidence** — knowledge coverage/freshness/ownership, knowledge graph, prompt/MCP/agent artifacts, and AI governance maturity (optional local Ollama enrichment); observational **language/web packs** and `.apo.toml` tooling overlays for fairer multi-ecosystem scoring
+- **v0.3 — Unified Evidence Pack** — `apo report` / `apo all` combines hygiene + knowledge + AI into one pack (`evidence_schema: apo-v0.3`), baseline diffs, SARIF export, and an in-repo GitHub Action
 
-Hygiene rules emit evidence only. A separate policy layer turns those observations into category and overall scores. Knowledge and AI analyzers stay deterministic by default; Ollama never invents evidence — it only narrates from analyzer outputs. Language packs observe configs and CI/script text; they do not run toolchains. APO does not grade “code quality” or run your tests.
+
 
 ## Install
 
@@ -79,13 +89,27 @@ cargo install --path .
 ```yaml
 - uses: baoulo/apo/.github/actions/setup-apo@main
   # with:
-  #   version: "0.2.0"   # optional; omit for latest
+  #   version: "0.3.0"   # optional; omit for latest
+
+# Unified pack + PR summary + artifacts (preferred for v0.3+)
+- uses: baoulo/apo/.github/actions/apo-report@main
+  with:
+    format: both
+    write-sarif: "true"
+    # baseline: path/to/prior-pack.json
+    # fail-on-score: "70"
 ```
 
 Templates under [`packaging/`](packaging/) are regenerated with `sastri generate --force` (CI/release workflows are owned by this repo and stay out of Sastri generation).
 ## Usage
 
 ```bash
+# Unified evidence pack (v0.3) — hygiene + knowledge + AI
+apo report .
+apo all . --format both --output ./out
+apo report . --baseline prior-pack.json --sarif
+apo report . --fail-on-score 70 --llm-prompt
+
 # Hygiene (v0.1)
 apo analyze .
 apo analyze . --format json
@@ -99,6 +123,7 @@ apo analyze git@github.com:thanos/ex_arrow.git --format both
 # LLM remediation prompt (paste into Cursor/ChatGPT/etc. to close gaps)
 apo analyze . --llm-prompt
 apo prompt .
+apo prompt --pack .
 apo prompt https://github.com/thanos/ex_arrow --output ./out
 
 # Knowledge + AI evidence (v0.2)
@@ -119,6 +144,14 @@ Hygiene files:
 - `{repo}-repository-hygiene.json` (when `--format json` or `both`)
 - `{repo}-repository-hygiene-prompt.md` (when `--llm-prompt` or `apo prompt`)
 - `{repo}-repository-hygiene-badge.svg` (default; skip with `--no-badge`)
+
+Unified pack files (`apo report` / `apo all`):
+
+- `{repo}-repository-evidence-pack.md` / `.json` (`evidence_schema: "apo-v0.3"`)
+- `{repo}-repository-evidence-pack.sarif` (when `--sarif` or `--format sarif`)
+- `{repo}-repository-evidence-pack-diff.md` (when `--baseline` is set)
+- `{repo}-repository-evidence-pack-prompt.md` (when `--llm-prompt`)
+- Hygiene + evidence badges (same as below)
 
 Evidence files:
 
@@ -162,6 +195,9 @@ Example CI step (GitHub.com or GitHub Enterprise Actions) to refresh a tracked b
 
 `apo evidence` inventories documentation and AI artifacts, builds a knowledge graph (docs ↔ code ↔ tests ↔ ADRs ↔ runbooks), scores knowledge and AI maturity, and lists risks. Everything is offline-capable.
 
+Knowledge kinds and scoring: [docs/knowledge-artifacts.md](docs/knowledge-artifacts.md).
+AI adoption signals and scoring: [docs/ai-adoption-signals.md](docs/ai-adoption-signals.md).
+
 Optional `--ollama` calls a local Ollama HTTP API for semantic classification, architecture summary, doc↔code linking hints, and an executive narrative. Deterministic analyzer data remains the source of truth; if Ollama is unreachable, APO falls back with notes and still writes the report. The client speaks plain HTTP (default `http://127.0.0.1:11434`); HTTPS endpoints are not supported.
 
 ```bash
@@ -200,16 +236,24 @@ apo evidence . --llm-prompt           # same evidence prompt alongside the repor
 # then paste into your LLM agent against the repo checkout
 ```
 
-### Language and web packs (Version 2)
+### Language and web packs
 
-Hygiene rules use **observational language/web packs** so Elixir, SQL, Nim, and other ecosystems are not under-scored relative to Rust/Node. Packs activate from manifests (e.g. `mix.exs`, `go.mod`, `next.config.*`) and contribute config paths + CI/Makefile/`mix` alias needles into existing rule ids.
+Hygiene rules use **observational language/web packs** so Elixir, SQL, Nim, COBOL, FORTRAN, Pascal, and other ecosystems are not under-scored relative to Rust/Node. Packs activate from manifests (e.g. `mix.exs`, `go.mod`, `fpm.toml`, `next.config.*`, `*.cob`) and contribute config paths + CI/Makefile needles into existing rule ids.
 
-Optional repo overlay [`.apo.toml`](.apo.toml):
+Full pack catalog (activation signals + tooling → rule mappings): [docs/language-packs.md](docs/language-packs.md).
+
+Optional repo overlay [`.apo.toml`](examples/apo.toml):
 
 ```toml
 [ecosystem]
 languages = ["elixir"]
 web = ["nextjs"]
+
+[report]
+format = "both"
+
+[analyze]
+# rule_disable = ["collaboration.maintenance_activity"]
 
 [[tooling]]
 id = "elixir.extra"
@@ -223,10 +267,14 @@ Packs never execute toolchains; they only observe files and scripts. See [ROADMA
 ## Pipeline
 
 ```text
-# Hygiene
+# Unified pack (v0.3)
+Repository → Discovery → Hygiene + Knowledge + AI → EvidencePack (apo-v0.3)
+  → optional baseline diff → Markdown + JSON + SARIF + badges
+
+# Hygiene (v0.1)
 Repository → Discovery → Hygiene Rules → Evidence → Policy/Scoring → Markdown + JSON
 
-# Knowledge + AI
+# Knowledge + AI (v0.2)
 Repository → Discovery → Knowledge + AI analyzers → (optional Ollama) → Evidence report
 ```
 
@@ -239,7 +287,9 @@ Repository → Discovery → Knowledge + AI analyzers → (optional Ollama) → 
 
 ## What gets measured
 
-APO v0.1+ runs **36 rules** across **6 categories** (packs feed several of them). Every finding includes:
+APO v0.3+ runs **39 rules** across **6 categories** (packs feed several of them). Full control catalog: [Hygiene controls](docs/hygiene-controls.md). Pack catalog: [Language and web packs](docs/language-packs.md).
+
+Every finding includes:
 
 | Field | Meaning |
 |-------|---------|
@@ -290,7 +340,7 @@ Both Markdown and JSON include:
 | Header / metadata | APO version, analyzer name (`repository-hygiene`), repository label, optional `source_uri` / `checkout_path`, timestamp |
 | Executive summary | Overall score and counts of enforced / present / gap findings |
 | Category scores | Per-category score plus counts of each status |
-| Findings | All 35 rule results with evidence |
+| Findings | All 36 rule results with evidence |
 | Missing controls | Rule ids with gap status |
 | Recommendations | Remediation text derived from gap findings |
 | Evidence appendix (Markdown) | Compact table of rule → status → evidence paths |
@@ -298,6 +348,8 @@ Both Markdown and JSON include:
 ---
 
 ## Rules catalog
+
+Detailed tables for every hygiene rule live in [docs/hygiene-controls.md](docs/hygiene-controls.md). Summary below.
 
 ### 1. Documentation & Onboarding (20% — Foundation)
 

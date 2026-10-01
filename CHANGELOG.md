@@ -7,17 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
+### Added
 
-- Repository moved to the [baoulo](https://github.com/baoulo/apo) GitHub org; crates.io publisher remains [`thanos`](https://crates.io/users/thanos)
+- Pack catalog: [docs/language-packs.md](docs/language-packs.md) (47 language/web packs)
+
+## [0.3.0] - 2026-10-01
+
+Unified Evidence Pack: one report for hygiene + knowledge + AI, baseline diffs, SARIF, GitHub Action, deeper QA rules, and legacy language packs.
 
 ### Added
 
-- Multi-channel install packaging via [sastri](https://crates.io/crates/sastri) (`Sastri.toml`): `scripts/install.sh`, Homebrew / Scoop / asdf / mise under `packaging/`, and `.github/actions/setup-apo`
-- Rust pack `docs` tooling needle (`cargo doc` → `documentation.doc_tooling`)
-- Repository hygiene/knowledge/AI dogfood artifacts: architecture, ADRs, runbooks, glossary, API/design docs, CODEOWNERS, PR/issue templates, settings-as-code, editorconfig, pre-commit, gitleaks, commitlint, AGENTS.md, versioned `prompts/`, `Makefile` / `scripts/setup.sh`
-- CI jobs for `cargo doc` and gitleaks secret scanning
-- Narrative write-up: [Eating Our Own Dog Food](docs/eating-our-own-dog-food.md)
+- `apo report` / `apo all` — unified pack with `evidence_schema: "apo-v0.3"` (`{repo}-repository-evidence-pack.{md,json}`)
+- `--baseline <prior.json>` score/gap diffs (`diff` object + `*-diff.md`)
+- SARIF 2.1.0 export (`--format sarif` / `--sarif`) for GitHub Code Scanning
+- In-repo GitHub Action [`.github/actions/apo-report`](.github/actions/apo-report/) (PR summary + artifacts); dogfood CI uses it
+- `.apo.toml` `[report]`, `[analyze]` (`commit_sample_limit`, `rule_disable`), `[ollama]` sections ([`examples/apo.toml`](examples/apo.toml))
+- QA rules: `testing.property`, `testing.integration`, `testing.ui` (NotApplicable without UI ecosystem)
+- Observational packs: `cobol`, `fortran`, `pascal`
+- `--fail-on-score` on `apo report`; `apo prompt --pack`
+
+### Changed
+
+- Package version `0.3.0`; hygiene rule count **39**
+- Dogfood CI runs unified `apo report` via the Action
+
+### Notes
+
+- `analyze` / `evidence` / `prompt` remain for backward compatibility
+- Packs stay observational; Ollama remains narrative-only
 
 ## [0.2.0] - 2026-07-20
 
@@ -36,11 +53,15 @@ Knowledge Evidence and AI Evidence analyzers, plus observational language/web pa
 - [`scripts/ci.sh`](scripts/ci.sh) local CI mirror; [`ROADMAP.md`](ROADMAP.md); [`examples/apo.toml`](examples/apo.toml)
 - Enterprise-friendly **static SVG badges** (`{repo}-*-badge.svg`) for hygiene and evidence — relative README embeds work on GitHub Enterprise; `--no-badge` / `--badge-output`
 - CI **APO self-analysis** job + `./scripts/ci.sh` dogfood (`analyze` + `evidence` on this repo; badges under `docs/badges/`)
+- Multi-channel install packaging via [sastri](https://crates.io/crates/sastri) (`Sastri.toml`): `scripts/install.sh`, Homebrew / Scoop / asdf / mise under `packaging/`, and `.github/actions/setup-apo`
+- Hygiene / knowledge / AI catalogs under [`docs/`](docs/)
+- Narrative write-up: [Eating Our Own Dog Food](docs/eating-our-own-dog-food.md)
 
 ### Changed
 
 - Package version `0.2.0`; description and README cover hygiene, evidence, and packs
 - Hygiene rule count **36** (adds `documentation.doc_tooling`)
+- Repository moved to the [baoulo](https://github.com/baoulo/apo) GitHub org; crates.io publisher remains [`thanos`](https://crates.io/users/thanos)
 
 ### Notes
 
@@ -76,5 +97,6 @@ First public release of **APO** — Engineering Evidence Platform — with the R
 - MSRV: Rust **1.85** (edition 2024)
 - Uses `gix` 0.85 (`revision` + `sha1`) for Git history sampling
 
+[0.3.0]: https://github.com/baoulo/apo/releases/tag/v0.3.0
 [0.2.0]: https://github.com/baoulo/apo/releases/tag/v0.2.0
 [0.1.0]: https://github.com/baoulo/apo/releases/tag/v0.1.0
