@@ -49,7 +49,8 @@ pub fn analyze_with_workspace(config: &Config) -> Result<(Report, Workspace)> {
         remote = workspace.is_remote(),
         "discovering repository"
     );
-    let ctx = discovery::discover(&workspace.path, config.commit_sample_limit)?;
+    let mut ctx = discovery::discover(&workspace.path, config.commit_sample_limit)?;
+    packs::attach_tooling(&mut ctx, &config.packs_dirs)?;
 
     info!(files = ctx.inventory.len(), "evaluating hygiene rules");
     let findings = filter_disabled(rules::evaluate_all(&ctx), &config.rule_disable);
@@ -84,7 +85,8 @@ pub fn analyze_evidence(config: &Config) -> Result<EvidenceReport> {
 pub fn analyze_evidence_with_workspace(config: &Config) -> Result<(EvidenceReport, Workspace)> {
     info!(target = %config.target, "resolving repository for evidence");
     let workspace = source::resolve(&config.target, config.commit_sample_limit)?;
-    let ctx = discovery::discover(&workspace.path, config.commit_sample_limit)?;
+    let mut ctx = discovery::discover(&workspace.path, config.commit_sample_limit)?;
+    packs::attach_tooling(&mut ctx, &config.packs_dirs)?;
 
     info!(files = ctx.inventory.len(), "collecting knowledge evidence");
     let knowledge = knowledge::analyze(&ctx);
@@ -154,7 +156,8 @@ pub fn analyze_pack(config: &Config) -> Result<EvidencePack> {
 pub fn analyze_pack_with_workspace(config: &Config) -> Result<(EvidencePack, Workspace)> {
     info!(target = %config.target, "resolving repository for unified pack");
     let workspace = source::resolve(&config.target, config.commit_sample_limit)?;
-    let ctx = discovery::discover(&workspace.path, config.commit_sample_limit)?;
+    let mut ctx = discovery::discover(&workspace.path, config.commit_sample_limit)?;
+    packs::attach_tooling(&mut ctx, &config.packs_dirs)?;
 
     let findings = filter_disabled(rules::evaluate_all(&ctx), &config.rule_disable);
     let policy = policy::evaluate(&findings);

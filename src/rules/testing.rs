@@ -479,7 +479,7 @@ impl Rule for UiTesting {
 }
 
 fn ui_ecosystem_present(ctx: &RepoContext) -> bool {
-    let tooling = crate::packs::for_repo(ctx);
+    let tooling = &ctx.tooling;
     for id in [
         "playwright",
         "cypress",

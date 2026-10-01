@@ -180,7 +180,7 @@ pub(crate) mod helpers {
 
     /// Collect evidence from language/web packs for a hygiene rule mapping.
     pub fn pack_evidence(ctx: &RepoContext, maps_to: crate::packs::MapsTo) -> Vec<EvidenceItem> {
-        let tooling = crate::packs::for_repo(ctx);
+        let tooling = &ctx.tooling;
         let mut items = Vec::new();
 
         let config_names = tooling.config_names(maps_to);

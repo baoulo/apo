@@ -1,15 +1,15 @@
 //! Resolve active packs and merge tooling entries.
 
-use crate::discovery::RepoContext;
-use crate::packs::catalog::{PackDef, builtin_packs};
-use crate::packs::config_file::ApoProjectConfig;
+use std::path::PathBuf;
 
-/// Pack category.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PackKind {
-    Language,
-    Web,
-}
+use tracing::warn;
+
+use crate::discovery::RepoContext;
+use crate::error::{Error, Result};
+use crate::packs::catalog::{builtin_packs, static_builtin_packs};
+use crate::packs::config_file::ApoProjectConfig;
+use crate::packs::def::PackDef;
+use crate::packs::external::load_external_packs;
 
 /// Which hygiene rule a tooling signal feeds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -108,12 +108,34 @@ impl ResolvedTooling {
     }
 }
 
+/// Merge builtins + external packs; error if an external id collides with a builtin.
+pub fn merge_pack_catalog(external: Vec<PackDef>) -> Result<Vec<PackDef>> {
+    let builtin_ids: std::collections::BTreeSet<&str> =
+        static_builtin_packs().iter().map(|p| p.id).collect();
+    for pack in &external {
+        if builtin_ids.contains(pack.id.as_str()) {
+            return Err(Error::Config(format!(
+                "external pack id '{}' conflicts with a built-in pack; rename the external pack",
+                pack.id
+            )));
+        }
+    }
+    let mut all = builtin_packs();
+    all.extend(external);
+    all.sort_by(|a, b| a.id.cmp(&b.id));
+    Ok(all)
+}
+
 /// List pack ids that match the repository inventory (and forced overlays).
-pub fn active_pack_ids(ctx: &RepoContext, config: Option<&ApoProjectConfig>) -> Vec<String> {
+pub fn active_pack_ids(
+    ctx: &RepoContext,
+    config: Option<&ApoProjectConfig>,
+    catalog: &[PackDef],
+) -> Vec<String> {
     let mut ids = Vec::new();
-    for pack in builtin_packs() {
+    for pack in catalog {
         if pack_matches(ctx, pack) {
-            ids.push(pack.id.to_string());
+            ids.push(pack.id.clone());
         }
     }
     if let Some(cfg) = config {
@@ -134,18 +156,22 @@ pub fn active_pack_ids(ctx: &RepoContext, config: Option<&ApoProjectConfig>) -> 
 }
 
 fn pack_matches(ctx: &RepoContext, pack: &PackDef) -> bool {
-    for m in pack.manifests {
+    for m in &pack.manifests {
         if ctx.has_file(m) {
             return true;
         }
     }
-    for needle in pack.path_contains {
+    for needle in &pack.path_contains {
         if !ctx.inventory.find_path_contains(needle).is_empty() {
             return true;
         }
     }
-    for basename in pack.basename_any {
-        if !ctx.inventory.find_by_basenames(&[basename]).is_empty() {
+    for basename in &pack.basename_any {
+        if !ctx
+            .inventory
+            .find_by_basenames(&[basename.as_str()])
+            .is_empty()
+        {
             return true;
         }
     }
@@ -164,22 +190,28 @@ fn pack_matches(ctx: &RepoContext, pack: &PackDef) -> bool {
     false
 }
 
-/// Resolve built-in packs + `.apo.toml` overlays into tooling entries.
-pub fn resolve_tooling(ctx: &RepoContext, config: Option<&ApoProjectConfig>) -> ResolvedTooling {
-    let active = active_pack_ids(ctx, config);
+/// Resolve built-in + external packs + `.apo.toml` overlays into tooling entries.
+pub fn resolve_tooling(
+    ctx: &RepoContext,
+    config: Option<&ApoProjectConfig>,
+    packs_dirs: &[PathBuf],
+) -> Result<ResolvedTooling> {
+    let external = load_external_packs(&ctx.root, packs_dirs)?;
+    let catalog = merge_pack_catalog(external)?;
+    let active = active_pack_ids(ctx, config, &catalog);
     let mut entries = Vec::new();
 
-    for pack in builtin_packs() {
-        if !active.iter().any(|id| id == pack.id) {
+    for pack in &catalog {
+        if !active.iter().any(|id| id == &pack.id) {
             continue;
         }
-        for t in pack.tooling {
+        for t in &pack.tooling {
             entries.push(ToolingEntry {
                 id: format!("{}.{}", pack.id, t.id),
-                pack_id: pack.id.to_string(),
+                pack_id: pack.id.clone(),
                 maps_to: t.maps_to,
-                configs: t.configs.iter().map(|s| (*s).to_string()).collect(),
-                ci_commands: t.ci_commands.iter().map(|s| (*s).to_string()).collect(),
+                configs: t.configs.clone(),
+                ci_commands: t.ci_commands.clone(),
             });
         }
     }
@@ -187,6 +219,7 @@ pub fn resolve_tooling(ctx: &RepoContext, config: Option<&ApoProjectConfig>) -> 
     if let Some(cfg) = config {
         for overlay in &cfg.tooling {
             let Some(maps_to) = overlay.maps_to_rule() else {
+                warn!(id = %overlay.id, maps_to = %overlay.maps_to, "skipping overlay with unknown maps_to");
                 continue;
             };
             entries.push(ToolingEntry {
@@ -199,8 +232,8 @@ pub fn resolve_tooling(ctx: &RepoContext, config: Option<&ApoProjectConfig>) -> 
         }
     }
 
-    ResolvedTooling {
+    Ok(ResolvedTooling {
         active_packs: active,
         entries,
-    }
+    })
 }

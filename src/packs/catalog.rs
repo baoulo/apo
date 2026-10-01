@@ -1,12 +1,14 @@
 //! Built-in language and web ecosystem pack definitions.
 
 use crate::packs::MapsTo;
+use crate::packs::def::PackDef;
+use crate::packs::def::PackKind;
 
-/// Static pack definition.
+/// Compile-time pack definition (static strings).
 #[derive(Debug, Clone)]
-pub struct PackDef {
+pub struct StaticPackDef {
     pub id: &'static str,
-    pub kind: super::PackKind,
+    pub kind: PackKind,
     /// Exact relative paths that activate the pack.
     pub manifests: &'static [&'static str],
     /// Substring path matches (e.g. `.sql`, `migrations`).
@@ -15,11 +17,11 @@ pub struct PackDef {
     pub basename_any: &'static [&'static str],
     /// Activate when `package.json` contains these substrings (deps/scripts).
     pub package_json_contains: &'static [&'static str],
-    pub tooling: &'static [ToolingDef],
+    pub tooling: &'static [StaticToolingDef],
 }
 
 #[derive(Debug, Clone)]
-pub struct ToolingDef {
+pub struct StaticToolingDef {
     pub id: &'static str,
     pub maps_to: MapsTo,
     pub configs: &'static [&'static str],
@@ -28,7 +30,7 @@ pub struct ToolingDef {
 
 macro_rules! tool {
     ($id:literal, $maps:expr, configs: [$($c:literal),* $(,)?], ci: [$($ci:literal),* $(,)?]) => {
-        ToolingDef {
+        StaticToolingDef {
             id: $id,
             maps_to: $maps,
             configs: &[$($c),*],
@@ -37,32 +39,40 @@ macro_rules! tool {
     };
 }
 
-/// Human-readable pack catalog (id + kind).
+/// Human-readable pack catalog (id + kind) for builtins.
 pub fn catalog_ids() -> Vec<(&'static str, &'static str)> {
-    builtin_packs()
+    static_builtin_packs()
         .iter()
         .map(|p| {
             (
                 p.id,
                 match p.kind {
-                    super::PackKind::Language => "language",
-                    super::PackKind::Web => "web",
+                    PackKind::Language => "language",
+                    PackKind::Web => "web",
                 },
             )
         })
         .collect()
 }
 
-/// All built-in packs (languages + web).
-pub fn builtin_packs() -> &'static [PackDef] {
+/// Built-in packs as owned runtime defs.
+pub fn builtin_packs() -> Vec<PackDef> {
+    static_builtin_packs()
+        .iter()
+        .map(PackDef::from_static)
+        .collect()
+}
+
+/// All built-in static packs (languages + web).
+pub fn static_builtin_packs() -> &'static [StaticPackDef] {
     PACKS
 }
 
-static PACKS: &[PackDef] = &[
+static PACKS: &[StaticPackDef] = &[
     // ——— Tier A languages ———
-    PackDef {
+    StaticPackDef {
         id: "rust",
-        kind: super::PackKind::Language,
+        kind: PackKind::Language,
         manifests: &["Cargo.toml"],
         path_contains: &[],
         basename_any: &[],
@@ -80,9 +90,9 @@ static PACKS: &[PackDef] = &[
             tool!("integration", MapsTo::IntegrationTesting, configs: [], ci: ["integration"]),
         ],
     },
-    PackDef {
+    StaticPackDef {
         id: "javascript",
-        kind: super::PackKind::Language,
+        kind: PackKind::Language,
         manifests: &["package.json"],
         path_contains: &[],
         basename_any: &[],
@@ -95,9 +105,9 @@ static PACKS: &[PackDef] = &[
             tool!("static", MapsTo::StaticAnalysisCi, configs: [], ci: ["eslint"]),
         ],
     },
-    PackDef {
+    StaticPackDef {
         id: "typescript",
-        kind: super::PackKind::Language,
+        kind: PackKind::Language,
         manifests: &["tsconfig.json", "jsconfig.json"],
         path_contains: &[],
         basename_any: &[],
@@ -108,9 +118,9 @@ static PACKS: &[PackDef] = &[
             tool!("lint", MapsTo::Linter, configs: [], ci: ["eslint", "tslint"]),
         ],
     },
-    PackDef {
+    StaticPackDef {
         id: "python",
-        kind: super::PackKind::Language,
+        kind: PackKind::Language,
         manifests: &["pyproject.toml", "setup.py", "requirements.txt", "Pipfile"],
         path_contains: &[],
         basename_any: &[],
@@ -127,9 +137,9 @@ static PACKS: &[PackDef] = &[
             tool!("integration", MapsTo::IntegrationTesting, configs: [], ci: ["integration", "testcontainers"]),
         ],
     },
-    PackDef {
+    StaticPackDef {
         id: "go",
-        kind: super::PackKind::Language,
+        kind: PackKind::Language,
         manifests: &["go.mod"],
         path_contains: &[],
         basename_any: &[],
@@ -144,9 +154,9 @@ static PACKS: &[PackDef] = &[
             tool!("static", MapsTo::StaticAnalysisCi, configs: [], ci: ["golangci-lint", "staticcheck"]),
         ],
     },
-    PackDef {
+    StaticPackDef {
         id: "java",
-        kind: super::PackKind::Language,
+        kind: PackKind::Language,
         manifests: &["pom.xml"],
         path_contains: &[],
         basename_any: &["build.gradle", "build.gradle.kts"],
@@ -161,9 +171,9 @@ static PACKS: &[PackDef] = &[
             tool!("types_ci", MapsTo::TypeCheckingCi, configs: [], ci: ["mvn compile", "gradle build"]),
         ],
     },
-    PackDef {
+    StaticPackDef {
         id: "csharp",
-        kind: super::PackKind::Language,
+        kind: PackKind::Language,
         manifests: &[],
         path_contains: &[".csproj", ".sln"],
         basename_any: &[],
@@ -177,9 +187,9 @@ static PACKS: &[PackDef] = &[
             tool!("types_ci", MapsTo::TypeCheckingCi, configs: [], ci: ["dotnet build"]),
         ],
     },
-    PackDef {
+    StaticPackDef {
         id: "php",
-        kind: super::PackKind::Language,
+        kind: PackKind::Language,
         manifests: &["composer.json"],
         path_contains: &[],
         basename_any: &[],
@@ -194,9 +204,9 @@ static PACKS: &[PackDef] = &[
             tool!("types_ci", MapsTo::TypeCheckingCi, configs: [], ci: ["phpstan", "psalm"]),
         ],
     },
-    PackDef {
+    StaticPackDef {
         id: "ruby",
-        kind: super::PackKind::Language,
+        kind: PackKind::Language,
         manifests: &["Gemfile"],
         path_contains: &[],
         basename_any: &[],
@@ -209,9 +219,9 @@ static PACKS: &[PackDef] = &[
             tool!("static", MapsTo::StaticAnalysisCi, configs: [], ci: ["rubocop", "brakeman"]),
         ],
     },
-    PackDef {
+    StaticPackDef {
         id: "elixir",
-        kind: super::PackKind::Language,
+        kind: PackKind::Language,
         manifests: &["mix.exs"],
         path_contains: &[],
         basename_any: &[],
@@ -231,9 +241,9 @@ static PACKS: &[PackDef] = &[
         ],
     },
     // ——— Tier B ———
-    PackDef {
+    StaticPackDef {
         id: "cpp",
-        kind: super::PackKind::Language,
+        kind: PackKind::Language,
         manifests: &[
             "CMakeLists.txt",
             "meson.build",
@@ -252,9 +262,9 @@ static PACKS: &[PackDef] = &[
             tool!("static", MapsTo::StaticAnalysisCi, configs: [], ci: ["clang-tidy", "cppcheck"]),
         ],
     },
-    PackDef {
+    StaticPackDef {
         id: "c",
-        kind: super::PackKind::Language,
+        kind: PackKind::Language,
         manifests: &[],
         path_contains: &[".c"],
         basename_any: &[],
@@ -265,9 +275,9 @@ static PACKS: &[PackDef] = &[
             tool!("static", MapsTo::StaticAnalysisCi, configs: [], ci: ["clang-tidy"]),
         ],
     },
-    PackDef {
+    StaticPackDef {
         id: "kotlin",
-        kind: super::PackKind::Language,
+        kind: PackKind::Language,
         manifests: &[],
         path_contains: &[".kt", ".kts"],
         basename_any: &["build.gradle.kts"],
@@ -280,9 +290,9 @@ static PACKS: &[PackDef] = &[
             tool!("types_ci", MapsTo::TypeCheckingCi, configs: [], ci: ["gradle build", "./gradlew"]),
         ],
     },
-    PackDef {
+    StaticPackDef {
         id: "swift",
-        kind: super::PackKind::Language,
+        kind: PackKind::Language,
         manifests: &["Package.swift"],
         path_contains: &[".xcodeproj", ".xcworkspace"],
         basename_any: &["Podfile"],
@@ -295,9 +305,9 @@ static PACKS: &[PackDef] = &[
             tool!("static", MapsTo::StaticAnalysisCi, configs: [], ci: ["swiftlint"]),
         ],
     },
-    PackDef {
+    StaticPackDef {
         id: "objc",
-        kind: super::PackKind::Language,
+        kind: PackKind::Language,
         manifests: &[],
         path_contains: &[".m", ".mm"],
         basename_any: &["Podfile"],
@@ -307,9 +317,9 @@ static PACKS: &[PackDef] = &[
             tool!("lint", MapsTo::Linter, configs: [".clang-tidy"], ci: ["clang-tidy"]),
         ],
     },
-    PackDef {
+    StaticPackDef {
         id: "dart",
-        kind: super::PackKind::Language,
+        kind: PackKind::Language,
         manifests: &["pubspec.yaml"],
         path_contains: &[],
         basename_any: &[],
@@ -322,9 +332,9 @@ static PACKS: &[PackDef] = &[
             tool!("types_ci", MapsTo::TypeCheckingCi, configs: [], ci: ["dart analyze", "flutter analyze"]),
         ],
     },
-    PackDef {
+    StaticPackDef {
         id: "scala",
-        kind: super::PackKind::Language,
+        kind: PackKind::Language,
         manifests: &["build.sbt"],
         path_contains: &[],
         basename_any: &[],
@@ -337,9 +347,9 @@ static PACKS: &[PackDef] = &[
             tool!("static", MapsTo::StaticAnalysisCi, configs: [], ci: ["scalafix"]),
         ],
     },
-    PackDef {
+    StaticPackDef {
         id: "erlang",
-        kind: super::PackKind::Language,
+        kind: PackKind::Language,
         manifests: &["rebar.config", "erlang.mk"],
         path_contains: &[],
         basename_any: &[],
@@ -352,9 +362,9 @@ static PACKS: &[PackDef] = &[
         ],
     },
     // ——— Tier C ———
-    PackDef {
+    StaticPackDef {
         id: "haskell",
-        kind: super::PackKind::Language,
+        kind: PackKind::Language,
         manifests: &["package.yaml", "stack.yaml", "cabal.project"],
         path_contains: &[".cabal"],
         basename_any: &[],
@@ -367,9 +377,9 @@ static PACKS: &[PackDef] = &[
             tool!("static", MapsTo::StaticAnalysisCi, configs: [], ci: ["hlint"]),
         ],
     },
-    PackDef {
+    StaticPackDef {
         id: "clojure",
-        kind: super::PackKind::Language,
+        kind: PackKind::Language,
         manifests: &["deps.edn", "project.clj", "bb.edn"],
         path_contains: &[],
         basename_any: &[],
@@ -380,9 +390,9 @@ static PACKS: &[PackDef] = &[
             tool!("static", MapsTo::StaticAnalysisCi, configs: [], ci: ["clj-kondo"]),
         ],
     },
-    PackDef {
+    StaticPackDef {
         id: "r",
-        kind: super::PackKind::Language,
+        kind: PackKind::Language,
         manifests: &["DESCRIPTION", "renv.lock"],
         path_contains: &[],
         basename_any: &[],
@@ -394,9 +404,9 @@ static PACKS: &[PackDef] = &[
             tool!("static", MapsTo::StaticAnalysisCi, configs: [], ci: ["lintr"]),
         ],
     },
-    PackDef {
+    StaticPackDef {
         id: "lua",
-        kind: super::PackKind::Language,
+        kind: PackKind::Language,
         manifests: &[],
         path_contains: &[".lua", ".rockspec"],
         basename_any: &["selene.toml", "stylua.toml"],
@@ -407,9 +417,9 @@ static PACKS: &[PackDef] = &[
             tool!("static", MapsTo::StaticAnalysisCi, configs: [], ci: ["selene", "luacheck"]),
         ],
     },
-    PackDef {
+    StaticPackDef {
         id: "perl",
-        kind: super::PackKind::Language,
+        kind: PackKind::Language,
         manifests: &["cpanfile", "Makefile.PL", "Build.PL"],
         path_contains: &[],
         basename_any: &[],
@@ -420,9 +430,9 @@ static PACKS: &[PackDef] = &[
             tool!("static", MapsTo::StaticAnalysisCi, configs: [], ci: ["perlcritic"]),
         ],
     },
-    PackDef {
+    StaticPackDef {
         id: "shell",
-        kind: super::PackKind::Language,
+        kind: PackKind::Language,
         manifests: &[],
         path_contains: &[".sh", ".bash"],
         basename_any: &[],
@@ -433,9 +443,9 @@ static PACKS: &[PackDef] = &[
             tool!("static", MapsTo::StaticAnalysisCi, configs: [], ci: ["shellcheck"]),
         ],
     },
-    PackDef {
+    StaticPackDef {
         id: "powershell",
-        kind: super::PackKind::Language,
+        kind: PackKind::Language,
         manifests: &[],
         path_contains: &[".ps1", ".psm1"],
         basename_any: &[],
@@ -445,9 +455,9 @@ static PACKS: &[PackDef] = &[
             tool!("static", MapsTo::StaticAnalysisCi, configs: [], ci: ["PSScriptAnalyzer"]),
         ],
     },
-    PackDef {
+    StaticPackDef {
         id: "julia",
-        kind: super::PackKind::Language,
+        kind: PackKind::Language,
         manifests: &["Project.toml", "Manifest.toml"],
         path_contains: &[],
         basename_any: &[],
@@ -458,9 +468,9 @@ static PACKS: &[PackDef] = &[
             tool!("docs", MapsTo::DocTooling, configs: [], ci: ["Documenter", "makedocs"]),
         ],
     },
-    PackDef {
+    StaticPackDef {
         id: "zig",
-        kind: super::PackKind::Language,
+        kind: PackKind::Language,
         manifests: &["build.zig", "build.zig.zon"],
         path_contains: &[],
         basename_any: &[],
@@ -471,9 +481,9 @@ static PACKS: &[PackDef] = &[
             tool!("types_ci", MapsTo::TypeCheckingCi, configs: [], ci: ["zig build"]),
         ],
     },
-    PackDef {
+    StaticPackDef {
         id: "nim",
-        kind: super::PackKind::Language,
+        kind: PackKind::Language,
         manifests: &["config.nims"],
         path_contains: &[".nimble"],
         basename_any: &[],
@@ -485,9 +495,9 @@ static PACKS: &[PackDef] = &[
             tool!("types_ci", MapsTo::TypeCheckingCi, configs: [], ci: ["nim check", "nim c"]),
         ],
     },
-    PackDef {
+    StaticPackDef {
         id: "sql",
-        kind: super::PackKind::Language,
+        kind: PackKind::Language,
         manifests: &[],
         path_contains: &[
             ".sql",
@@ -507,9 +517,9 @@ static PACKS: &[PackDef] = &[
             tool!("static", MapsTo::StaticAnalysisCi, configs: [], ci: ["sqlfluff"]),
         ],
     },
-    PackDef {
+    StaticPackDef {
         id: "solidity",
-        kind: super::PackKind::Language,
+        kind: PackKind::Language,
         manifests: &[
             "foundry.toml",
             "hardhat.config.js",
@@ -526,9 +536,9 @@ static PACKS: &[PackDef] = &[
             tool!("audit", MapsTo::DependencyScanning, configs: [], ci: ["slither"]),
         ],
     },
-    PackDef {
+    StaticPackDef {
         id: "nix",
-        kind: super::PackKind::Language,
+        kind: PackKind::Language,
         manifests: &["flake.nix", "shell.nix", "default.nix"],
         path_contains: &[],
         basename_any: &[],
@@ -540,9 +550,9 @@ static PACKS: &[PackDef] = &[
         ],
     },
     // ——— Legacy language packs (observational) ———
-    PackDef {
+    StaticPackDef {
         id: "cobol",
-        kind: super::PackKind::Language,
+        kind: PackKind::Language,
         manifests: &[],
         path_contains: &[".cob", ".cbl"],
         basename_any: &[],
@@ -554,9 +564,9 @@ static PACKS: &[PackDef] = &[
             tool!("types_ci", MapsTo::TypeCheckingCi, configs: [], ci: ["cobc", "cobolci"]),
         ],
     },
-    PackDef {
+    StaticPackDef {
         id: "fortran",
-        kind: super::PackKind::Language,
+        kind: PackKind::Language,
         manifests: &["fpm.toml"],
         path_contains: &[".f90", ".f95", ".f03", ".f08"],
         basename_any: &[],
@@ -569,9 +579,9 @@ static PACKS: &[PackDef] = &[
             tool!("static", MapsTo::StaticAnalysisCi, configs: [], ci: ["fortitude", "flinter"]),
         ],
     },
-    PackDef {
+    StaticPackDef {
         id: "pascal",
-        kind: super::PackKind::Language,
+        kind: PackKind::Language,
         manifests: &[],
         path_contains: &[".pas", ".lpr", ".dpr", ".lpi"],
         basename_any: &[],
@@ -584,9 +594,9 @@ static PACKS: &[PackDef] = &[
         ],
     },
     // ——— Web ecosystems (additive) ———
-    PackDef {
+    StaticPackDef {
         id: "react",
-        kind: super::PackKind::Web,
+        kind: PackKind::Web,
         manifests: &[],
         path_contains: &[],
         basename_any: &[],
@@ -596,9 +606,9 @@ static PACKS: &[PackDef] = &[
             tool!("lint", MapsTo::Linter, configs: [], ci: ["eslint-plugin-react"]),
         ],
     },
-    PackDef {
+    StaticPackDef {
         id: "nextjs",
-        kind: super::PackKind::Web,
+        kind: PackKind::Web,
         manifests: &["next.config.js", "next.config.mjs", "next.config.ts"],
         path_contains: &[],
         basename_any: &[],
@@ -609,9 +619,9 @@ static PACKS: &[PackDef] = &[
             tool!("static", MapsTo::StaticAnalysisCi, configs: [], ci: ["next lint"]),
         ],
     },
-    PackDef {
+    StaticPackDef {
         id: "vue",
-        kind: super::PackKind::Web,
+        kind: PackKind::Web,
         manifests: &[],
         path_contains: &[".vue"],
         basename_any: &[],
@@ -622,9 +632,9 @@ static PACKS: &[PackDef] = &[
             tool!("types_ci", MapsTo::TypeCheckingCi, configs: [], ci: ["vue-tsc"]),
         ],
     },
-    PackDef {
+    StaticPackDef {
         id: "nuxt",
-        kind: super::PackKind::Web,
+        kind: PackKind::Web,
         manifests: &["nuxt.config.ts", "nuxt.config.js", "nuxt.config.mjs"],
         path_contains: &[],
         basename_any: &[],
@@ -634,9 +644,9 @@ static PACKS: &[PackDef] = &[
             tool!("types_ci", MapsTo::TypeCheckingCi, configs: [], ci: ["nuxi typecheck", "nuxt build"]),
         ],
     },
-    PackDef {
+    StaticPackDef {
         id: "svelte",
-        kind: super::PackKind::Web,
+        kind: PackKind::Web,
         manifests: &["svelte.config.js", "svelte.config.ts"],
         path_contains: &[".svelte"],
         basename_any: &[],
@@ -647,9 +657,9 @@ static PACKS: &[PackDef] = &[
             tool!("test", MapsTo::TestFramework, configs: [], ci: ["vitest"]),
         ],
     },
-    PackDef {
+    StaticPackDef {
         id: "angular",
-        kind: super::PackKind::Web,
+        kind: PackKind::Web,
         manifests: &["angular.json"],
         path_contains: &[],
         basename_any: &[],
@@ -661,9 +671,9 @@ static PACKS: &[PackDef] = &[
             tool!("static", MapsTo::StaticAnalysisCi, configs: [], ci: ["ng lint"]),
         ],
     },
-    PackDef {
+    StaticPackDef {
         id: "remix",
-        kind: super::PackKind::Web,
+        kind: PackKind::Web,
         manifests: &["remix.config.js", "remix.config.ts"],
         path_contains: &[],
         basename_any: &[],
@@ -673,9 +683,9 @@ static PACKS: &[PackDef] = &[
             tool!("test", MapsTo::TestFramework, configs: [], ci: ["vitest", "playwright"]),
         ],
     },
-    PackDef {
+    StaticPackDef {
         id: "astro",
-        kind: super::PackKind::Web,
+        kind: PackKind::Web,
         manifests: &["astro.config.mjs", "astro.config.ts", "astro.config.js"],
         path_contains: &[],
         basename_any: &[],
@@ -685,9 +695,9 @@ static PACKS: &[PackDef] = &[
             tool!("types_ci", MapsTo::TypeCheckingCi, configs: [], ci: ["astro check", "astro build"]),
         ],
     },
-    PackDef {
+    StaticPackDef {
         id: "vite",
-        kind: super::PackKind::Web,
+        kind: PackKind::Web,
         manifests: &["vite.config.ts", "vite.config.js", "vite.config.mjs"],
         path_contains: &[],
         basename_any: &[],
@@ -697,9 +707,9 @@ static PACKS: &[PackDef] = &[
             tool!("test", MapsTo::TestFramework, configs: [], ci: ["vitest"]),
         ],
     },
-    PackDef {
+    StaticPackDef {
         id: "css_tooling",
-        kind: super::PackKind::Web,
+        kind: PackKind::Web,
         manifests: &[
             "tailwind.config.js",
             "tailwind.config.ts",
@@ -714,9 +724,9 @@ static PACKS: &[PackDef] = &[
             tool!("format", MapsTo::Formatter, configs: ["prettier.config.js"], ci: ["prettier"]),
         ],
     },
-    PackDef {
+    StaticPackDef {
         id: "playwright",
-        kind: super::PackKind::Web,
+        kind: PackKind::Web,
         manifests: &["playwright.config.ts", "playwright.config.js"],
         path_contains: &[],
         basename_any: &[],
@@ -726,9 +736,9 @@ static PACKS: &[PackDef] = &[
             tool!("ui", MapsTo::UiTesting, configs: ["playwright.config.ts", "playwright.config.js"], ci: ["playwright test", "npx playwright"]),
         ],
     },
-    PackDef {
+    StaticPackDef {
         id: "cypress",
-        kind: super::PackKind::Web,
+        kind: PackKind::Web,
         manifests: &["cypress.config.ts", "cypress.config.js", "cypress.json"],
         path_contains: &[],
         basename_any: &[],
@@ -738,9 +748,9 @@ static PACKS: &[PackDef] = &[
             tool!("ui", MapsTo::UiTesting, configs: ["cypress.config.ts", "cypress.config.js", "cypress.json"], ci: ["cypress run", "cypress open"]),
         ],
     },
-    PackDef {
+    StaticPackDef {
         id: "a11y",
-        kind: super::PackKind::Web,
+        kind: PackKind::Web,
         manifests: &[],
         path_contains: &[],
         basename_any: &[],
@@ -757,7 +767,8 @@ mod tests {
 
     #[test]
     fn catalog_has_core_packs() {
-        let ids: Vec<_> = builtin_packs().iter().map(|p| p.id).collect();
+        let packs = builtin_packs();
+        let ids: Vec<_> = packs.iter().map(|p| p.id.as_str()).collect();
         for need in [
             "rust",
             "elixir",
@@ -777,6 +788,6 @@ mod tests {
         ] {
             assert!(ids.contains(&need), "missing pack {need}");
         }
-        assert!(builtin_packs().len() >= 33);
+        assert!(packs.len() >= 33);
     }
 }

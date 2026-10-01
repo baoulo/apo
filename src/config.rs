@@ -82,10 +82,19 @@ pub struct Config {
     pub rule_disable: Vec<String>,
     /// Optional score threshold; CLI may fail when hygiene score is below this.
     pub fail_on_score: Option<f64>,
+    /// Extra directories of external pack TOML files (`--packs-dir` / `APO_PACKS_DIR`).
+    /// Always also loads `{repo}/.apo/packs/`.
+    pub packs_dirs: Vec<std::path::PathBuf>,
 }
 
 impl Default for Config {
     fn default() -> Self {
+        let mut packs_dirs = Vec::new();
+        if let Ok(dir) = std::env::var("APO_PACKS_DIR") {
+            if !dir.is_empty() {
+                packs_dirs.push(std::path::PathBuf::from(dir));
+            }
+        }
         Self {
             target: ".".into(),
             format: OutputFormat::Markdown,
@@ -105,6 +114,7 @@ impl Default for Config {
             write_sarif: false,
             rule_disable: Vec::new(),
             fail_on_score: None,
+            packs_dirs,
         }
     }
 }

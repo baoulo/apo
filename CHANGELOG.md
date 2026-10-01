@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Pack catalog: [docs/language-packs.md](docs/language-packs.md) (47 language/web packs)
+- **External packs:** load declarative TOML from `.apo/packs/`, `--packs-dir`, or `APO_PACKS_DIR` without rebuilding ([`examples/packs/crystal.toml`](examples/packs/crystal.toml)); builtin id conflicts are errors
 
 ## [0.3.0] - 2026-10-01
 

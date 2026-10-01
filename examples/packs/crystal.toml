@@ -1,0 +1,34 @@
+# Example external language pack for Crystal.
+# Copy to `{repo}/.apo/packs/crystal.toml` or point `--packs-dir` at this folder.
+# Detection is observational — APO does not execute these commands.
+
+id = "crystal"
+kind = "language"
+manifests = ["shard.yml"]
+path_contains = [".cr"]
+basename_any = []
+package_json_contains = []
+
+[[tooling]]
+id = "format"
+maps_to = "local_development.formatter"
+configs = []
+ci_commands = ["crystal tool format --check", "crystal tool format"]
+
+[[tooling]]
+id = "lint"
+maps_to = "local_development.linter"
+configs = [".ameba.yml"]
+ci_commands = ["ameba"]
+
+[[tooling]]
+id = "test"
+maps_to = "testing.framework"
+configs = []
+ci_commands = ["crystal spec"]
+
+[[tooling]]
+id = "types_ci"
+maps_to = "testing.type_checking_ci"
+configs = []
+ci_commands = ["crystal build"]

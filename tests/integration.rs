@@ -484,3 +484,68 @@ fn evidence_analyzer_detects_knowledge_and_ai() {
     }));
     assert!(written_report.knowledge_maturity >= report.knowledge_maturity - 0.1);
 }
+
+#[test]
+fn external_pack_from_apo_packs_dir_activates() {
+    use apo::evidence::Status;
+    use apo::packs::{load_packs_from_dir, merge_pack_catalog};
+
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    init_repo(root);
+    write(root, "README.md", "# crystal app\n");
+    write(root, "shard.yml", "name: demo\n");
+    write(root, "src/main.cr", "puts \"hi\"\n");
+    write(root, ".ameba.yml", "Rules:\n");
+    write(
+        root,
+        ".apo/packs/crystal.toml",
+        r#"
+id = "crystal"
+kind = "language"
+manifests = ["shard.yml"]
+path_contains = [".cr"]
+
+[[tooling]]
+id = "lint"
+maps_to = "local_development.linter"
+configs = [".ameba.yml"]
+ci_commands = ["ameba"]
+"#,
+    );
+    commit_all(root, "feat: crystal with external pack");
+
+    let report = analyze(&Config {
+        target: root.display().to_string(),
+        format: OutputFormat::Json,
+        badge: false,
+        ..Config::default()
+    })
+    .unwrap();
+
+    let linter = report
+        .findings
+        .iter()
+        .find(|f| f.rule == "local_development.linter")
+        .expect("linter finding");
+    assert!(
+        matches!(linter.status, Status::Present | Status::Enforced),
+        "expected Present/Enforced from external crystal pack, got {:?}",
+        linter.status
+    );
+
+    // Conflict with builtin id must error
+    let conflict_dir = tempdir().unwrap();
+    fs::write(
+        conflict_dir.path().join("rust.toml"),
+        r#"
+id = "rust"
+kind = "language"
+manifests = ["Cargo.toml"]
+"#,
+    )
+    .unwrap();
+    let external = load_packs_from_dir(conflict_dir.path()).unwrap();
+    let err = merge_pack_catalog(external).unwrap_err();
+    assert!(err.to_string().contains("conflicts"), "{err}");
+}

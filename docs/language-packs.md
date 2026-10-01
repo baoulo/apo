@@ -5,8 +5,9 @@ needles to look for. Packs never execute toolchains; they only observe files and
 
 There are **47** built-in packs (34 language + 13 web).
 Force-enable or overlay via [`.apo.toml`](../examples/apo.toml) (`[ecosystem]` / `[[tooling]]`).
+Add **new** packs without rebuilding via [external packs](#external-packs).
 
-Source of truth: [`src/packs/catalog.rs`](../src/packs/catalog.rs).
+Source of truth for builtins: [`src/packs/catalog.rs`](../src/packs/catalog.rs).
 
 ## How packs work
 
@@ -15,6 +16,44 @@ Source of truth: [`src/packs/catalog.rs`](../src/packs/catalog.rs).
 3. **Evidence** — present configs → Present; CI/script mentions → often Enforced.
 
 Tables below are sorted by pack id; tooling rows by tooling id.
+
+## External packs
+
+Declarative TOML pack files load at analyze time (no rebuild, no embedded scripts).
+
+**Discovery (in order):**
+
+1. Built-in catalog
+2. `{repo}/.apo/packs/*.toml`
+3. Extra dirs from `--packs-dir` (repeatable) and/or `APO_PACKS_DIR`
+4. `.apo.toml` force-enable + `[[tooling]]` overlays
+
+**Conflict policy:** an external pack whose `id` matches a built-in pack is a hard error (rename the external id). Unknown `maps_to` values are skipped with a warning.
+
+**Schema** (see also [`examples/packs/crystal.toml`](../examples/packs/crystal.toml)):
+
+```toml
+id = "crystal"
+kind = "language"   # or "web"
+manifests = ["shard.yml"]
+path_contains = [".cr"]
+basename_any = []
+package_json_contains = []
+
+[[tooling]]
+id = "lint"
+maps_to = "local_development.linter"   # must be a known hygiene rule id
+configs = [".ameba.yml"]
+ci_commands = ["ameba"]
+```
+
+Valid `maps_to` rule ids: `local_development.formatter`, `local_development.linter`,
+`local_development.type_checker`, `security.dependency_scanning`, `security.secret_scanning`,
+`testing.framework`, `testing.static_analysis_ci`, `testing.type_checking_ci`,
+`testing.property`, `testing.integration`, `testing.ui`, `documentation.doc_tooling`.
+
+Embedded scripting (e.g. Rhai) for custom activation predicates is **not** implemented;
+string needles cover the declarative pack model. Python/Lua embeds are intentionally out of scope.
 
 ## Index
 

@@ -16,6 +16,11 @@ use crate::packs::ApoProjectConfig;
     long_about = None
 )]
 pub struct Cli {
+    /// Extra directory of external pack TOML files (repeatable). Also loads `{repo}/.apo/packs/`.
+    /// Env `APO_PACKS_DIR` is included by default when set.
+    #[arg(long = "packs-dir", global = true, action = clap::ArgAction::Append)]
+    pub packs_dir: Vec<PathBuf>,
+
     #[command(subcommand)]
     pub command: Commands,
 }
@@ -176,6 +181,14 @@ pub enum Commands {
 impl Cli {
     /// Convert CLI args into a [`Config`], merging `.apo.toml` defaults when present.
     pub fn into_config(self) -> Result<Config, String> {
+        let extra_packs = self.packs_dir.clone();
+        let apply_packs = |cfg: &mut Config| {
+            for d in &extra_packs {
+                if !cfg.packs_dirs.iter().any(|p| p == d) {
+                    cfg.packs_dirs.push(d.clone());
+                }
+            }
+        };
         match self.command {
             Commands::Analyze {
                 target,
@@ -193,6 +206,7 @@ impl Cli {
                 cfg.mode = AnalyzerMode::Hygiene;
                 cfg.badge = badge;
                 cfg.badge_output = badge_output;
+                apply_packs(&mut cfg);
                 Ok(cfg)
             }
             Commands::Evidence {
@@ -214,7 +228,6 @@ impl Cli {
                 cfg.mode = AnalyzerMode::Evidence;
                 cfg.badge = badge;
                 cfg.badge_output = badge_output;
-                // CLI --ollama wins; otherwise keep project ollama.enabled
                 if ollama {
                     cfg.ollama = true;
                 }
@@ -226,6 +239,7 @@ impl Cli {
                         cfg.ollama_model = ollama_model;
                     }
                 }
+                apply_packs(&mut cfg);
                 Ok(cfg)
             }
             Commands::Report {
@@ -244,11 +258,7 @@ impl Cli {
             } => {
                 let mut cfg = base_from_project(&target);
                 cfg.target = target;
-                // CLI format overrides project report.format
                 cfg.format = OutputFormat::parse(&format)?;
-                // If CLI left default markdown and project set format, prefer project
-                // when format arg equals default — already parsed; re-apply project if
-                // format is markdown and project has a different preference.
                 if format == "markdown"
                     && let Some(pf) =
                         ApoProjectConfig::load_from_root(std::path::Path::new(&cfg.target))
@@ -270,6 +280,7 @@ impl Cli {
                     cfg.ollama_url = ollama_url;
                     cfg.ollama_model = ollama_model;
                 }
+                apply_packs(&mut cfg);
                 Ok(cfg)
             }
             Commands::Prompt {
@@ -295,6 +306,7 @@ impl Cli {
                 cfg.prompt_stdout = !quiet;
                 cfg.badge = false;
                 cfg.mode = mode;
+                apply_packs(&mut cfg);
                 Ok(cfg)
             }
         }
