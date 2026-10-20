@@ -279,7 +279,7 @@ mod tests {
                 .build(),
         ];
         let report = Report {
-            apo_version: "0.3.1".into(),
+            apo_version: "0.3.2".into(),
             analyzer: "repository-hygiene".into(),
             repository: "/tmp/demo".into(),
             checkout_path: None,

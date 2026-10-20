@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-10-20
+
+Release automation for packaging checksums and install smoke tests, exercised end-to-end on this tag.
+
+### Added
+
+- `scripts/update-packaging-checksums.sh` fills Homebrew and Scoop hashes from a release `SHA256SUMS`
+- Release workflow job `update-packaging` runs after the GitHub Release, committing checksums to `main` with `RELEASE_PUSH_TOKEN`
+- Release workflow job `verify-install` smokes `scripts/install.sh` on Ubuntu and macOS, and `brew install --formula` on macOS, before crates.io publish
+
+### Changed
+
+- Package version `0.3.2`; install/docs/packaging pins point at `0.3.2`
+
 ## [0.3.1] - 2026-10-19
 
 Correctness pass after scanning ex_arrow: knowledge false negatives, hygiene scoring, report metadata, and score-use limits. Schema stays `apo-v0.3`.
@@ -126,6 +140,7 @@ First public release of **APO** — Engineering Evidence Platform — with the R
 - MSRV: Rust **1.85** (edition 2024)
 - Uses `gix` 0.85 (`revision` + `sha1`) for Git history sampling
 
+[0.3.2]: https://github.com/baoulo/apo/releases/tag/v0.3.2
 [0.3.1]: https://github.com/baoulo/apo/releases/tag/v0.3.1
 [0.3.0]: https://github.com/baoulo/apo/releases/tag/v0.3.0
 [0.2.0]: https://github.com/baoulo/apo/releases/tag/v0.2.0

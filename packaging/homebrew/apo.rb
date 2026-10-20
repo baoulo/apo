@@ -1,10 +1,12 @@
 # Homebrew Formula for apo
 #
-# Copy to your tap as Formula/apo.rb and fill sha256 from Release SHA256SUMS.
+# Source of truth in-repo. Checksums are filled by
+# scripts/update-packaging-checksums.sh from the GitHub Release SHA256SUMS.
+# Copy to baoulo/homebrew-tap as Formula/apo.rb after each release.
 class Apo < Formula
   desc "APO — Engineering Evidence Platform. Repository hygiene, knowledge, and AI evidence."
   homepage "https://github.com/baoulo/apo"
-  version "0.3.1"
+  version "0.3.2"
   license "MIT"
 
   on_macos do
