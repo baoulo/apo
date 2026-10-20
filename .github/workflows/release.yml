@@ -125,8 +125,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: main
-          # Fine-grained PAT (Contents: read/write) so packaging commits can land on main.
-          token: ${{ secrets.RELEASE_PUSH_TOKEN }}
+          # github-actions[bot] via GITHUB_TOKEN (job permissions: contents: write).
+          # Do not use a personal PAT here unless Resource owner = baoulo, repo access,
+          # Contents write, and org SSO are all correct — a user PAT without org push
+          # rights fails with: Permission denied to <user> (403).
+          token: ${{ github.token }}
       - name: Fill Homebrew and Scoop hashes from SHA256SUMS
         run: |
           set -euo pipefail

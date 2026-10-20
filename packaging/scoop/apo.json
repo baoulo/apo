@@ -6,7 +6,7 @@
   "architecture": {
     "64bit": {
       "url": "https://github.com/baoulo/apo/releases/download/v0.3.2/apo-v0.3.2-windows-x86_64.zip",
-      "hash": "REPLACE_AFTER_RELEASE"
+      "hash": "1b2699cf4146eab712e513837ec352371492184885d7e458f010f249ab166732"
     }
   },
   "bin": "apo.exe",
