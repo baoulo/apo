@@ -420,6 +420,8 @@ mod tests {
             repository: "/tmp/demo".into(),
             checkout_path: None,
             source_uri: None,
+            commit_sha: None,
+            branch: None,
             generated_at: "2026-01-01T00:00:00Z".into(),
             executive_summary: "Knowledge maturity 40/100. AI maturity 10/100.".into(),
             repository_evidence: RepositoryEvidenceMeta {

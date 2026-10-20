@@ -9,6 +9,7 @@ pub fn rules() -> Vec<Box<dyn Rule>> {
     vec![
         Box::new(DependencyScanning),
         Box::new(SecretScanning),
+        Box::new(Sast),
         Box::new(SecurityPolicy),
         Box::new(DependencyUpdates),
     ]
@@ -97,6 +98,27 @@ impl Rule for SecretScanning {
                 .evidence(items)
                 .build()
         }
+    }
+}
+
+struct Sast;
+impl Rule for Sast {
+    fn id(&self) -> &'static str {
+        "security.sast"
+    }
+    fn evaluate(&self, ctx: &RepoContext) -> Finding {
+        let legacy = helpers::ci_mentions(ctx, &["sobelow", "bandit", "gosec", "brakeman"]);
+        helpers::finding_from_pack_or_legacy(
+            ctx,
+            self.id(),
+            Category::Security,
+            crate::packs::MapsTo::Sast,
+            legacy,
+            "No security-focused static analysis (SAST) signals detected.",
+            "SAST configuration detected. This records that a tool is wired, not that apo scanned for vulnerabilities.",
+            "SAST command detected in CI/scripts. This records that a tool is wired, not that apo scanned for vulnerabilities.",
+            "Add a SAST step (for example mix sobelow, bandit, gosec, or brakeman) and gate it in CI.",
+        )
     }
 }
 

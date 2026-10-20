@@ -4,7 +4,7 @@
 class Apo < Formula
   desc "APO — Engineering Evidence Platform. Repository hygiene, knowledge, and AI evidence."
   homepage "https://github.com/baoulo/apo"
-  version "0.2.0"
+  version "0.3.1"
   license "MIT"
 
   on_macos do

@@ -29,7 +29,12 @@ pub fn pack_to_toml(pack: &PackDef) -> String {
         let _ = writeln!(out);
         let _ = writeln!(out, "[[tooling]]");
         let _ = writeln!(out, "id = {}", toml_string(&t.id));
-        let _ = writeln!(out, "maps_to = {}", toml_string(t.maps_to.rule_id()));
+        if t.maps_to.len() == 1 {
+            let _ = writeln!(out, "maps_to = {}", toml_string(t.maps_to[0].rule_id()));
+        } else {
+            let ids: Vec<String> = t.maps_to.iter().map(|m| m.rule_id().to_string()).collect();
+            write_string_array(&mut out, "maps_to", &ids);
+        }
         write_string_array(&mut out, "configs", &t.configs);
         write_string_array(&mut out, "ci_commands", &t.ci_commands);
     }
@@ -54,6 +59,15 @@ fn write_string_array(out: &mut String, key: &str, values: &[String]) {
         let _ = write!(out, "{}", toml_string(v));
     }
     let _ = writeln!(out, "]");
+}
+
+/// Render one built-in pack as TOML.
+pub fn pack_to_toml_by_id(id: &str) -> Result<String> {
+    builtin_packs()
+        .iter()
+        .find(|p| p.id == id)
+        .map(pack_to_toml)
+        .ok_or_else(|| Error::Config(format!("unknown built-in pack id '{id}'")))
 }
 
 /// Dump built-in packs as `{id}.toml` files under `output_dir`.

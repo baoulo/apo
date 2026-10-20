@@ -7,12 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-19
+
+Correctness pass after scanning ex_arrow: knowledge false negatives, hygiene scoring, report metadata, and score-use limits. Schema stays `apo-v0.3`.
+
 ### Added
 
 - Pack catalog: [docs/language-packs.md](docs/language-packs.md) (47 language/web packs)
 - **External packs:** load declarative TOML from `.apo/packs/`, `--packs-dir`, or `APO_PACKS_DIR` without rebuilding ([`examples/packs/crystal.toml`](examples/packs/crystal.toml)); same `id` as a built-in **overrides** it
 - `apo packs dump -o <dir>` exports built-in packs as `{id}.toml` for inspection/templates
+- `apo packs list` and `apo packs show <id>`
 - **Report transparency:** hygiene JSON/Markdown list disabled rules (`rule_disable`), overridden packs, skipped tooling (`unknown maps_to`), and not-applicable rule ids
+- Knowledge inventory recognizes `guides/`, notebooks (`.livemd`, `.ipynb`, `.Rmd`, `.qmd`), filename kinds (overview, guides, checklists), and changelogs. Elixir packs contribute inline `@moduledoc` / `@doc` evidence and ExDoc `extras` paths
+- `security.sast` records that a SAST command is configured
+- Detected packs section (nested manifests), commit SHA/branch on reports
+- “How to read this score” limits on hygiene/pack Markdown and the README
+
+### Changed
+
+- Package version `0.3.1`; hygiene rule count **40** (38 scored; `documentation.security` and `documentation.codeowners` are reported aliases)
+- Knowledge freshness uses git commit time, with a shallow-clone lower bound (never checkout mtime as author time)
+- Broken links are listed in evidence/pack Markdown; published-doc basename notes do not mark GitHub-relative paths healthy
+- CI needles match command tokens; workflow filenames like `test_*.yml` are not treated as test files
+- Nested manifests (for example `native/.../Cargo.toml`) activate language packs
+- `collaboration.maintenance_activity` is **NotApplicable** when the last commit is older than 90 days (quiet history is not a gap)
+- `generated_at` uses second precision; remote scans omit the temp checkout path
+- Clap help no longer tags commands with `(v0.1)` / `(v0.2)` / `(v0.3)`
+- Install script runs under POSIX `sh`
+- Packaging pins (mise, asdf, Homebrew, Scoop, `Sastri.toml`) and install examples point at `0.3.1`
+
+### Fixed
+
+- Elixir pack audits `mix deps.audit` alongside `mix hex.audit`; Sobelow maps to both static analysis and `security.sast`
 
 ## [0.3.0] - 2026-10-01
 
@@ -100,6 +126,7 @@ First public release of **APO** — Engineering Evidence Platform — with the R
 - MSRV: Rust **1.85** (edition 2024)
 - Uses `gix` 0.85 (`revision` + `sha1`) for Git history sampling
 
+[0.3.1]: https://github.com/baoulo/apo/releases/tag/v0.3.1
 [0.3.0]: https://github.com/baoulo/apo/releases/tag/v0.3.0
 [0.2.0]: https://github.com/baoulo/apo/releases/tag/v0.2.0
 [0.1.0]: https://github.com/baoulo/apo/releases/tag/v0.1.0

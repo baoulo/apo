@@ -9,6 +9,7 @@ APO is an **Engineering Evidence Platform**. Deterministic analyzers and languag
 | **0.1** | Repository Hygiene (observational rules, weighted rubric, remote URIs, LLM remediation prompts) |
 | **0.2** | Knowledge + AI Evidence, optional Ollama narrative enrichment, evidence LLM prompts; language/web **pack engine**, `.apo.toml` overlays; **static SVG badges** (enterprise-friendly) |
 | **0.3** | Unified evidence pack (`apo report`), `evidence_schema: apo-v0.3`, baseline diffs, SARIF, GitHub Action, QA depth rules, COBOL/FORTRAN/Pascal packs |
+| **0.3.1** | Correctness pass (knowledge inventory/freshness, hygiene scoring aliases + `security.sast`, nested packs, score-use limits, packaging pins) |
 
 ## Next
 

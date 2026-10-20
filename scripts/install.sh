@@ -1,16 +1,23 @@
-#!/usr/bin/env bash
+#!/bin/sh
 # Install apo from GitHub Releases (no Rust toolchain required).
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/baoulo/apo/main/scripts/install.sh | sh
-#   APO_VERSION=v0.2.0 sh scripts/install.sh
-set -euo pipefail
+#   APO_VERSION=v0.3.1 sh scripts/install.sh
+set -eu
 
 REPO="${APO_REPO:-baoulo/apo}"
 INSTALL_DIR="${APO_INSTALL_DIR:-${HOME}/.local/bin}"
 VERSION="${APO_VERSION:-}"
+tmp=""
+
+cleanup() {
+  if [ -n "${tmp}" ]; then
+    rm -rf "${tmp}"
+  fi
+}
+trap cleanup EXIT
 
 detect_platform() {
-  local os arch
   os="$(uname -s | tr '[:upper:]' '[:lower:]')"
   arch="$(uname -m)"
   case "${os}" in
@@ -24,7 +31,7 @@ detect_platform() {
     aarch64|arm64) arch="aarch64" ;;
     *) echo "error: unsupported architecture: ${arch}" >&2; exit 1 ;;
   esac
-  echo "${os}-${arch}"
+  platform="${os}-${arch}"
 }
 
 latest_tag() {
@@ -33,16 +40,15 @@ latest_tag() {
 }
 
 download() {
-  local url="$1" dest="$2"
-  curl -fsSL "${url}" -o "${dest}"
+  curl -fsSL "$1" -o "$2"
 }
 
 verify_checksum() {
-  local archive="$1" sums="$2"
-  local base actual expected
+  archive="$1"
+  sums="$2"
   base="$(basename "${archive}")"
   expected="$(awk -v f="${base}" '$2 == f { print $1; exit }' "${sums}" || true)"
-  if [[ -z "${expected}" ]]; then
+  if [ -z "${expected}" ]; then
     echo "warning: no checksum entry for ${base}; skipping verification" >&2
     return 0
   fi
@@ -54,41 +60,37 @@ verify_checksum() {
     echo "warning: no sha256 tool found; skipping verification" >&2
     return 0
   fi
-  if [[ "${actual}" != "${expected}" ]]; then
+  if [ "${actual}" != "${expected}" ]; then
     echo "error: checksum mismatch for ${base}" >&2
     exit 1
   fi
 }
 
 main() {
-  if [[ -z "${VERSION}" ]]; then
+  if [ -z "${VERSION}" ]; then
     VERSION="$(latest_tag)"
   fi
   VERSION="${VERSION#v}"
-  local tag="v${VERSION}"
-  local platform archive_name ext
-  platform="$(detect_platform)"
-  if [[ "${platform}" == windows-* ]]; then
-    ext="zip"
-  else
-    ext="tar.gz"
-  fi
+  tag="v${VERSION}"
+  detect_platform
+  case "${platform}" in
+    windows-*) ext="zip" ;;
+    *) ext="tar.gz" ;;
+  esac
   archive_name="apo-${tag}-${platform}.${ext}"
 
-  local tmp
   tmp="$(mktemp -d)"
-  trap 'rm -rf "${tmp}"' EXIT
 
   download "https://github.com/${REPO}/releases/download/${tag}/${archive_name}" \
     "${tmp}/${archive_name}"
   download "https://github.com/${REPO}/releases/download/${tag}/SHA256SUMS" \
     "${tmp}/SHA256SUMS" || true
-  if [[ -f "${tmp}/SHA256SUMS" ]]; then
+  if [ -f "${tmp}/SHA256SUMS" ]; then
     verify_checksum "${tmp}/${archive_name}" "${tmp}/SHA256SUMS"
   fi
 
   mkdir -p "${INSTALL_DIR}"
-  if [[ "${ext}" == "tar.gz" ]]; then
+  if [ "${ext}" = "tar.gz" ]; then
     tar -xzf "${tmp}/${archive_name}" -C "${tmp}"
     install -m 0755 "${tmp}/apo" "${INSTALL_DIR}/apo"
   else

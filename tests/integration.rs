@@ -282,7 +282,8 @@ fn analyzes_remote_file_uri() {
     assert_eq!(written.len(), 2);
     assert_eq!(report.repository, uri);
     assert_eq!(report.source_uri.as_deref(), Some(uri.as_str()));
-    assert!(report.checkout_path.is_some());
+    assert!(report.checkout_path.is_none());
+    assert!(report.commit_sha.is_some());
     assert!(written.iter().any(|p| {
         p.extension().and_then(|e| e.to_str()) == Some("svg")
             || p.file_name()
@@ -866,4 +867,169 @@ configs = ["y"]
     let md = apo::report::render_markdown(&report);
     assert!(md.contains("### Skipped tooling"));
     assert!(md.contains("bogus"));
+}
+
+#[test]
+fn knowledge_classifies_guides_notebooks_changelog_and_inline_docs() {
+    use apo::analyze_evidence;
+
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    init_repo(root);
+    write(root, "README.md", "# demo\n");
+    write(root, "CHANGELOG.md", "# 0.1\n");
+    write(root, "guides/intro.md", "# Intro\n");
+    write(root, "docs/overview.md", "# Overview\n");
+    write(root, "livebook/tour.livemd", "# Tour\n");
+    write(
+        root,
+        "mix.exs",
+        "defmodule Demo.MixProject do\n  use Mix.Project\n  def project do\n    [app: :demo, docs: [extras: [\"guides/intro.md\"]]]\n  end\nend\n",
+    );
+    write(
+        root,
+        "lib/demo.ex",
+        "defmodule Demo do\n  @moduledoc \"Hello\"\n  @doc \"adds\"\n  def add(a, b), do: a + b\nend\n",
+    );
+    commit_all(root, "feat: docs");
+
+    let report = analyze_evidence(&Config {
+        target: root.display().to_string(),
+        format: OutputFormat::Json,
+        badge: false,
+        ..Config::default()
+    })
+    .unwrap();
+
+    let kinds: Vec<_> = report
+        .knowledge
+        .kinds_present
+        .iter()
+        .map(|k| k.as_str())
+        .collect();
+    assert!(kinds.contains(&"changelog"), "{kinds:?}");
+    assert!(kinds.contains(&"onboarding"), "{kinds:?}");
+    assert!(kinds.contains(&"architecture"), "{kinds:?}");
+    assert!(kinds.contains(&"api"), "{kinds:?}");
+    assert!(
+        report
+            .knowledge
+            .artifacts
+            .iter()
+            .any(|a| a.path == "guides/intro.md")
+    );
+    assert!(
+        report
+            .knowledge
+            .artifacts
+            .iter()
+            .any(|a| a.path == "livebook/tour.livemd")
+    );
+    assert!(
+        report
+            .knowledge
+            .artifacts
+            .iter()
+            .any(|a| a.freshness_source.as_deref() == Some("git"))
+    );
+}
+
+#[test]
+fn quiet_history_is_not_a_maintenance_gap() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    init_repo(root);
+    write(root, "README.md", "# old\n");
+    let status = Command::new("git")
+        .args(["add", "-A"])
+        .current_dir(root)
+        .status()
+        .unwrap();
+    assert!(status.success());
+    let status = Command::new("git")
+        .args(["commit", "-m", "feat: ancient"])
+        .current_dir(root)
+        .env("GIT_AUTHOR_DATE", "2000-01-01T00:00:00Z")
+        .env("GIT_COMMITTER_DATE", "2000-01-01T00:00:00Z")
+        .env("GIT_AUTHOR_NAME", "APO Test")
+        .env("GIT_AUTHOR_EMAIL", "apo@example.com")
+        .env("GIT_COMMITTER_NAME", "APO Test")
+        .env("GIT_COMMITTER_EMAIL", "apo@example.com")
+        .status()
+        .unwrap();
+    assert!(status.success());
+
+    let report = analyze(&Config {
+        target: root.display().to_string(),
+        format: OutputFormat::Markdown,
+        badge: false,
+        ..Config::default()
+    })
+    .unwrap();
+
+    let activity = report
+        .findings
+        .iter()
+        .find(|f| f.rule == "collaboration.maintenance_activity")
+        .expect("maintenance finding");
+    assert_eq!(activity.status, apo::evidence::Status::NotApplicable);
+    assert!(
+        !report
+            .missing_controls
+            .iter()
+            .any(|g| g == "collaboration.maintenance_activity")
+    );
+    let md = apo::report::render_markdown(&report);
+    assert!(md.contains("## How to read this score"));
+    assert!(md.contains("Presence is not quality"));
+}
+
+#[test]
+fn workflow_named_test_is_not_a_test_file_and_nested_cargo_activates_rust() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    init_repo(root);
+    write(root, "README.md", "# demo\n");
+    write(
+        root,
+        ".github/workflows/test_gh_pages_write.yml",
+        "name: probe\non: push\njobs:\n  probe:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo ok\n",
+    );
+    write(
+        root,
+        "native/demo/Cargo.toml",
+        "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    );
+    write(root, "native/demo/src/lib.rs", "");
+    commit_all(root, "feat: nested");
+
+    let report = analyze(&Config {
+        target: root.display().to_string(),
+        format: OutputFormat::Json,
+        badge: false,
+        ..Config::default()
+    })
+    .unwrap();
+
+    let framework = report
+        .findings
+        .iter()
+        .find(|f| f.rule == "testing.framework")
+        .expect("framework");
+    assert!(
+        framework
+            .evidence
+            .iter()
+            .all(|e| e.path.as_deref() != Some(".github/workflows/test_gh_pages_write.yml")),
+        "{:?}",
+        framework.evidence
+    );
+    assert!(
+        report.detected_packs.iter().any(|p| p.id == "rust"
+            && p.triggers
+                .iter()
+                .any(|t| t.contains("native/demo/Cargo.toml"))),
+        "{:?}",
+        report.detected_packs
+    );
 }

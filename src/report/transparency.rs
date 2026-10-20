@@ -19,6 +19,9 @@ pub struct Transparency {
     /// Rule ids observed as `NotApplicable` (still listed under findings).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub not_applicable_rules: Vec<String>,
+    /// Findings that are listed but excluded from the policy average.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub unscored_rules: Vec<String>,
 }
 
 impl Transparency {
@@ -27,6 +30,7 @@ impl Transparency {
             && self.overridden_packs.is_empty()
             && self.skipped_tooling.is_empty()
             && self.not_applicable_rules.is_empty()
+            && self.unscored_rules.is_empty()
     }
 
     pub fn sort(&mut self) {
@@ -36,6 +40,8 @@ impl Transparency {
         self.overridden_packs.dedup();
         self.not_applicable_rules.sort();
         self.not_applicable_rules.dedup();
+        self.unscored_rules.sort();
+        self.unscored_rules.dedup();
         self.skipped_tooling
             .sort_by(|a, b| (&a.source, &a.id).cmp(&(&b.source, &b.id)));
     }

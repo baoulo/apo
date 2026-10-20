@@ -19,6 +19,10 @@ pub struct EvidencePack {
     pub checkout_path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_uri: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub commit_sha: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub branch: Option<String>,
     pub generated_at: String,
     pub executive_summary: String,
     pub hygiene: Report,
@@ -71,7 +75,9 @@ impl EvidencePack {
             repository: workspace.label.clone(),
             checkout_path: hygiene.checkout_path.clone(),
             source_uri: workspace.source_uri.clone(),
-            generated_at: chrono::Utc::now().to_rfc3339(),
+            commit_sha: hygiene.commit_sha.clone(),
+            branch: hygiene.branch.clone(),
+            generated_at: crate::report::timestamp_secs(),
             executive_summary,
             hygiene,
             evidence,

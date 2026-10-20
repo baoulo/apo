@@ -282,24 +282,18 @@ impl Rule for MaintenanceActivity {
                 Status::Present,
                 "Maintenance activity within the last 90 days.",
             )
-        } else if days <= 180 {
-            (Status::Partial, "Last commit is older than 90 days.")
         } else {
             (
-                Status::Missing,
-                "No recent maintenance activity (last commit older than 180 days).",
+                Status::NotApplicable,
+                "Last commit is older than 90 days. Quiet history is not a missing control; the repository may be finished or inactive.",
             )
         };
 
-        let mut b = Finding::builder(self.id(), Category::Collaboration)
+        Finding::builder(self.id(), Category::Collaboration)
             .status(status)
             .confidence(Confidence::High)
             .summary(summary)
-            .evidence(items);
-
-        if status.is_gap() {
-            b = b.remediation("Resume regular maintenance commits or archive the repository.");
-        }
-        b.build()
+            .evidence(items)
+            .build()
     }
 }

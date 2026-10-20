@@ -231,15 +231,15 @@ string needles cover the declarative pack model. Python/Lua embeds are intention
 
 | Tooling id | Maps to rule | Example configs | Example CI needles |
 |------------|--------------|-----------------|--------------------|
-| `audit` | `security.dependency_scanning` | — | `mix hex.audit`, `mix hex.outdated` |
+| `audit` | `security.dependency_scanning` | — | `mix hex.audit`, `mix hex.outdated`, `mix deps.audit` |
 | `compile` | `testing.type_checking_ci` | — | `mix compile --warnings-as-errors`, `mix compile` |
 | `docs` | `documentation.doc_tooling` | — | `mix docs --warnings-as-errors`, `mix docs` |
 | `doctor` | `documentation.doc_tooling` | — | `mix doctor --full`, `mix doctor` |
 | `format` | `local_development.formatter` | `.formatter.exs` | `mix format --check-formatted`, `mix format` |
-| `integration` | `testing.integration` | — | `integration` |
+| `integration` | `testing.integration` | — | `test/integration` |
 | `lint` | `local_development.linter` | `.credo.exs` | `mix credo --strict`, `mix credo` |
 | `property` | `testing.property` | — | `stream_data`, `propcheck` |
-| `security` | `testing.static_analysis_ci` | `.sobelow-conf`, `.sobelow-skips` | `mix sobelow --config`, `mix sobelow` |
+| `security` | `testing.static_analysis_ci`, `security.sast` | `.sobelow-conf`, `.sobelow-skips` | `mix sobelow --config`, `mix sobelow` |
 | `test` | `testing.framework` | — | `mix test` |
 | `types` | `local_development.type_checker` | `.dialyzer_ignore.exs`, `dialyzer.exs` | `mix dialyzer` |
 
@@ -517,7 +517,7 @@ string needles cover the declarative pack model. Python/Lua embeds are intention
 |------------|--------------|-----------------|--------------------|
 | `audit` | `security.dependency_scanning` | — | `pip-audit`, `safety`, `osv-scanner` |
 | `format` | `local_development.formatter` | `pyproject.toml`, `.isort.cfg` | `black`, `ruff format`, `isort` |
-| `integration` | `testing.integration` | — | `integration`, `testcontainers` |
+| `integration` | `testing.integration` | — | `testcontainers` |
 | `lint` | `local_development.linter` | `ruff.toml`, `.flake8`, `pylintrc`, `.pylintrc`, `setup.cfg` | `ruff`, `flake8`, `pylint` |
 | `property` | `testing.property` | `pyproject.toml` | `hypothesis`, `pytest` |
 | `static` | `testing.static_analysis_ci` | — | `ruff`, `flake8`, `pylint`, `bandit` |
@@ -572,9 +572,9 @@ string needles cover the declarative pack model. Python/Lua embeds are intention
 | `audit` | `security.dependency_scanning` | `deny.toml`, `audit.toml` | `cargo audit`, `cargo deny` |
 | `docs` | `documentation.doc_tooling` | — | `cargo doc` |
 | `format` | `local_development.formatter` | `rustfmt.toml`, `.rustfmt.toml` | `cargo fmt`, `rustfmt` |
-| `integration` | `testing.integration` | — | `integration` |
+| `integration` | `testing.integration` | — | `test/integration` |
 | `lint` | `local_development.linter` | `clippy.toml`, `.clippy.toml` | `cargo clippy`, `clippy` |
-| `property` | `testing.property` | — | `proptest`, `cargo test` |
+| `property` | `testing.property` | — | `proptest` |
 | `static` | `testing.static_analysis_ci` | — | `cargo clippy`, `cargo deny` |
 | `test` | `testing.framework` | — | `cargo test` |
 | `types` | `local_development.type_checker` | `Cargo.toml` | `cargo check`, `cargo build` |

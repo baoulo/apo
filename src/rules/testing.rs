@@ -37,6 +37,13 @@ impl Rule for TestFramework {
         // Test file patterns
         let test_files = ctx.inventory.find_matching(|p| {
             let l = p.to_ascii_lowercase();
+            if l.contains("/.github/")
+                || l.contains("/.gitlab/")
+                || l.ends_with(".yml")
+                || l.ends_with(".yaml")
+            {
+                return false;
+            }
             l.contains("/test_")
                 || l.contains("_test.")
                 || l.contains(".test.")
@@ -388,10 +395,7 @@ impl Rule for IntegrationTesting {
         for path in &ctx.detect_signals().ci_workflow_paths {
             if let Some(text) = ctx.read_text(path) {
                 let l = text.to_ascii_lowercase();
-                if l.contains("integration")
-                    || l.contains("testcontainers")
-                    || l.contains("cucumber")
-                {
+                if l.contains("testcontainers") || l.contains("cucumber") {
                     legacy.push(EvidenceItem::path_detail(
                         path.clone(),
                         "mentions:integration",
@@ -400,7 +404,7 @@ impl Rule for IntegrationTesting {
             }
         }
         legacy.sort_by(|a, b| a.path.cmp(&b.path));
-        legacy.dedup();
+        legacy.dedup_by(|a, b| a.path.is_some() && a.path == b.path);
 
         helpers::finding_from_pack_or_legacy(
             ctx,
