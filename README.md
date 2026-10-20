@@ -54,7 +54,7 @@ scoop install apo
 See [packaging/mise/README.md](packaging/mise/README.md).
 
 ```bash
-mise use -g github:baoulo/apo@0.3.1
+mise use -g github:baoulo/apo@0.3.2
 ```
 
 ### asdf
@@ -63,12 +63,12 @@ From [baoulo/asdf-apo](https://github.com/baoulo/asdf-apo) (push `packaging/asdf
 
 ```bash
 asdf plugin add apo https://github.com/baoulo/asdf-apo.git
-asdf install apo 0.3.1
+asdf install apo 0.3.2
 ```
 
 ### curl
 
-Installs the latest tag into `~/.local/bin` (or `APO_INSTALL_DIR`). Pin with `APO_VERSION=v0.3.1`.
+Installs the latest tag into `~/.local/bin` (or `APO_INSTALL_DIR`). Pin with `APO_VERSION=v0.3.2`.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/baoulo/apo/main/scripts/install.sh | sh
@@ -90,7 +90,7 @@ cargo install --path .
 ```yaml
 - uses: baoulo/apo/.github/actions/setup-apo@main
   # with:
-  #   version: "0.3.1"   # optional; omit for latest
+  #   version: "0.3.2"   # optional; omit for latest
 
 # Unified pack + PR summary + artifacts (preferred for v0.3+)
 - uses: baoulo/apo/.github/actions/apo-report@main

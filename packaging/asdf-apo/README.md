@@ -4,8 +4,8 @@ asdf plugin that installs `apo` from [GitHub Releases](https://github.com/baoulo
 
 ```bash
 asdf plugin add apo https://github.com/baoulo/asdf-apo.git
-asdf install apo 0.3.1
-asdf global apo 0.3.1
+asdf install apo 0.3.2
+asdf global apo 0.3.2
 apo --version
 ```
 

@@ -1,11 +1,11 @@
 {
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "APO — Engineering Evidence Platform. Repository hygiene, knowledge, and AI evidence.",
   "homepage": "https://github.com/baoulo/apo",
   "license": "MIT",
   "architecture": {
     "64bit": {
-      "url": "https://github.com/baoulo/apo/releases/download/v0.3.1/apo-v0.3.1-windows-x86_64.zip",
+      "url": "https://github.com/baoulo/apo/releases/download/v0.3.2/apo-v0.3.2-windows-x86_64.zip",
       "hash": "REPLACE_AFTER_RELEASE"
     }
   },

@@ -2,7 +2,7 @@
 # Install apo from GitHub Releases (no Rust toolchain required).
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/baoulo/apo/main/scripts/install.sh | sh
-#   APO_VERSION=v0.3.1 sh scripts/install.sh
+#   APO_VERSION=v0.3.2 sh scripts/install.sh
 set -eu
 
 REPO="${APO_REPO:-baoulo/apo}"

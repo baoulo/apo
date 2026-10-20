@@ -54,9 +54,10 @@ cargo run -- evidence . --badge-output docs/badges/apo-evidence.svg
 
 1. Bump version in `Cargo.toml` and add a `CHANGELOG.md` section
 2. Merge to `main`
-3. Ensure the `CARGO_REGISTRY_TOKEN` repository secret is set (crates.io API token)
-4. Tag and push: `git tag v0.3.1 && git push origin v0.3.1`
-5. The Release workflow builds binaries, creates a GitHub Release, and runs `cargo publish`
+3. Ensure repository secrets are set: `CARGO_REGISTRY_TOKEN` (crates.io) and `RELEASE_PUSH_TOKEN` (push packaging checksums to `main`)
+4. Tag and push: `git tag v0.3.2 && git push origin v0.3.2`
+5. The Release workflow: build binaries → GitHub Release + `SHA256SUMS` → fill Homebrew/Scoop checksums on `main` → smoke-test `install.sh` (Ubuntu + macOS) and Homebrew formula (macOS) → `cargo publish`
+6. Copy updated `packaging/homebrew/apo.rb` and `packaging/scoop/apo.json` to the tap/bucket repos when ready
 
 Manual publish (optional):
 
