@@ -54,7 +54,7 @@ scoop install apo
 See [packaging/mise/README.md](packaging/mise/README.md).
 
 ```bash
-mise use -g github:baoulo/apo@0.2.0
+mise use -g github:baoulo/apo@0.3.1
 ```
 
 ### asdf
@@ -63,12 +63,12 @@ From [baoulo/asdf-apo](https://github.com/baoulo/asdf-apo) (push `packaging/asdf
 
 ```bash
 asdf plugin add apo https://github.com/baoulo/asdf-apo.git
-asdf install apo 0.2.0
+asdf install apo 0.3.1
 ```
 
 ### curl
 
-Installs the latest tag into `~/.local/bin` (or `APO_INSTALL_DIR`). Pin with `APO_VERSION=v0.2.0`.
+Installs the latest tag into `~/.local/bin` (or `APO_INSTALL_DIR`). Pin with `APO_VERSION=v0.3.1`.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/baoulo/apo/main/scripts/install.sh | sh
@@ -90,7 +90,7 @@ cargo install --path .
 ```yaml
 - uses: baoulo/apo/.github/actions/setup-apo@main
   # with:
-  #   version: "0.3.0"   # optional; omit for latest
+  #   version: "0.3.1"   # optional; omit for latest
 
 # Unified pack + PR summary + artifacts (preferred for v0.3+)
 - uses: baoulo/apo/.github/actions/apo-report@main
@@ -289,7 +289,9 @@ Repository → Discovery → Knowledge + AI analyzers → (optional Ollama) → 
 
 ## What gets measured
 
-APO v0.3+ runs **39 rules** across **6 categories** (packs feed several of them). Full control catalog: [Hygiene controls](docs/hygiene-controls.md). Pack catalog: [Language and web packs](docs/language-packs.md).
+APO v0.3+ runs **40 rules** across **6 categories** (38 of them affect the score; `documentation.security` and `documentation.codeowners` are reported aliases). Command names such as `analyze` and `evidence` are pipelines. The rubric id `apo-hygiene-v0.1` is the scoring recipe inside schema `apo-v0.3`, not a stale release. Full control catalog: [Hygiene controls](docs/hygiene-controls.md). Pack catalog: [Language and web packs](docs/language-packs.md).
+
+The score records presence of controls, not quality. An empty file can raise it. Do not use it as a team KPI or to rank engineers. apo is not a code-quality grade or a security scanner. `--fail-on-score` is off unless you set it; for a legacy repository, start from that repository's current score.
 
 Every finding includes:
 
@@ -342,7 +344,7 @@ Both Markdown and JSON include:
 | Header / metadata | APO version, analyzer name (`repository-hygiene`), repository label, optional `source_uri` / `checkout_path`, timestamp |
 | Executive summary | Overall score and counts of enforced / present / gap findings |
 | Category scores | Per-category score plus counts of each status |
-| Findings | All 36 rule results with evidence |
+| Findings | All 40 rule results with evidence |
 | Missing controls | Rule ids with gap status |
 | Recommendations | Remediation text derived from gap findings |
 | Evidence appendix (Markdown) | Compact table of rule → status → evidence paths |
@@ -359,12 +361,12 @@ Detailed tables for every hygiene rule live in [docs/hygiene-controls.md](docs/h
 |---------|-------------------|
 | `documentation.readme` | `README.md` (or common variants). **Enforced** if content mentions quickstart/install/usage-style keywords. |
 | `documentation.contributing` | `CONTRIBUTING.md` (root, `.github/`, or `docs/`). |
-| `documentation.security` | `SECURITY.md` (root, `.github/`, or `docs/`). |
+| `documentation.security` | `SECURITY.md` (root, `.github/`, or `docs/`). Reported only; scoring copy is `security.policy`. |
 | `documentation.license` | `LICENSE` / `LICENCE` / `COPYING` (and common extensions). |
 | `documentation.architecture` | `ARCHITECTURE.md`, `DESIGN.md`, or docs paths containing “architecture”. |
 | `documentation.adrs` | ADR directories (`docs/adr`, `adr`, …) or ADR markdown files. |
 | `documentation.runbooks` | Paths/dirs containing “runbook”. |
-| `documentation.codeowners` | `CODEOWNERS` (root, `.github/`, `docs/`, `.gitlab/`). |
+| `documentation.codeowners` | `CODEOWNERS` (root, `.github/`, `docs/`, `.gitlab/`). Reported only; scoring copy is `collaboration.codeowners`. |
 | `documentation.issue_templates` | `.github/ISSUE_TEMPLATE/` or issue template files. |
 | `documentation.pr_templates` | Pull request template files (e.g. `.github/pull_request_template.md`). |
 | `documentation.doc_tooling` | Docs quality gates from language packs (e.g. `mix doctor`, `mix docs --warnings-as-errors`). |
@@ -397,6 +399,7 @@ Detailed tables for every hygiene rule live in [docs/hygiene-controls.md](docs/h
 |---------|-------------------|
 | `security.dependency_scanning` | Audit/deny configs or CI steps (`cargo audit`/`deny`, `npm audit`, Snyk, OSV, Trivy, CodeQL paths, …). |
 | `security.secret_scanning` | Gitleaks / TruffleHog / detect-secrets configs or CI mentions; `.secrets.baseline`. |
+| `security.sast` | A SAST command is configured (`mix sobelow`, bandit, gosec, brakeman). apo does not scan for vulnerabilities. |
 | `security.policy` | Security policy document (`SECURITY.md`, etc.) — scored in the security category. |
 | `security.dependency_updates` | Dependabot or Renovate configuration. |
 
@@ -417,7 +420,7 @@ Detailed tables for every hygiene rule live in [docs/hygiene-controls.md](docs/h
 | `collaboration.issue_linkage` | Issue refs in commit messages (`#123`, `PROJ-1`) and/or PR templates that ask for issue linkage. |
 | `collaboration.codeowners` | Same CODEOWNERS paths as documentation, scored under collaboration. |
 | `collaboration.review_configuration` | PR templates, CODEOWNERS, settings-as-code, or auto-assign/reviewer configs. |
-| `collaboration.maintenance_activity` | Age of latest commit from Git history: ≤30 days **Enforced**, ≤90 **Present**, ≤180 **Partial**, older **Missing**. **Unknown** if the repo has no commits or Git metadata is unavailable. |
+| `collaboration.maintenance_activity` | Age of latest commit from Git history: ≤30 days **Enforced**, ≤90 **Present**. Older than 90 days is **NotApplicable** (a quiet history is not a missing control). **Unknown** if the repo has no commits or Git metadata is unavailable. |
 
 ---
 

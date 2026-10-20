@@ -23,10 +23,11 @@ pub fn render_markdown(report: &Report) -> String {
     if let Some(uri) = &report.source_uri {
         let _ = writeln!(out, "- **Source URI:** `{uri}`");
     }
-    if let Some(path) = &report.checkout_path
-        && report.source_uri.is_some()
-    {
-        let _ = writeln!(out, "- **Checkout path:** `{path}`");
+    if let Some(sha) = &report.commit_sha {
+        let _ = writeln!(out, "- **Commit:** `{sha}`");
+    }
+    if let Some(branch) = &report.branch {
+        let _ = writeln!(out, "- **Branch:** `{branch}`");
     }
     let _ = writeln!(out, "- **Generated:** {}", report.generated_at);
     if let Some(score) = report.policy.overall_score {
@@ -38,6 +39,30 @@ pub fn render_markdown(report: &Report) -> String {
     let _ = writeln!(out);
     let _ = writeln!(out, "{}", report.executive_summary);
     let _ = writeln!(out);
+
+    let _ = writeln!(out, "## How to read this score");
+    let _ = writeln!(out);
+    let _ = writeln!(out, "{SCORE_LIMITS}");
+    let _ = writeln!(out);
+
+    if !report.detected_packs.is_empty() {
+        let _ = writeln!(out, "## Detected packs");
+        let _ = writeln!(out);
+        for pack in &report.detected_packs {
+            let _ = writeln!(
+                out,
+                "- `{}` via {} — tooling: {}",
+                pack.id,
+                pack.triggers.join(", "),
+                if pack.tooling.is_empty() {
+                    "—".into()
+                } else {
+                    pack.tooling.join(", ")
+                }
+            );
+        }
+        let _ = writeln!(out);
+    }
 
     let _ = writeln!(out, "## Category scores");
     let _ = writeln!(out);
@@ -180,6 +205,17 @@ pub fn render_markdown(report: &Report) -> String {
             }
             let _ = writeln!(out);
         }
+        if !report.transparency.unscored_rules.is_empty() {
+            let _ = writeln!(out, "### Reported, not scored");
+            let _ = writeln!(out);
+            for id in &report.transparency.unscored_rules {
+                let _ = writeln!(
+                    out,
+                    "- `{id}` — listed for visibility; the scoring copy is another rule"
+                );
+            }
+            let _ = writeln!(out);
+        }
         if !report.transparency.not_applicable_rules.is_empty() {
             let _ = writeln!(out, "### Not applicable");
             let _ = writeln!(out);
@@ -220,6 +256,12 @@ pub fn render_markdown(report: &Report) -> String {
     out
 }
 
+const SCORE_LIMITS: &str = "\
+- Presence is not quality. An empty file or folder can raise the score.\n\
+- Do not use the score as a team KPI or to rank engineers.\n\
+- apo is not a code-quality grade or a security scanner. A SAST finding means a tool is configured, not that vulnerabilities were found or cleared.\n\
+- `--fail-on-score` is off unless you set it. For a legacy repository, start from that repository's current score.\n";
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -237,11 +279,14 @@ mod tests {
                 .build(),
         ];
         let report = Report {
-            apo_version: "0.3.0".into(),
+            apo_version: "0.3.1".into(),
             analyzer: "repository-hygiene".into(),
             repository: "/tmp/demo".into(),
             checkout_path: None,
             source_uri: None,
+            commit_sha: None,
+            branch: None,
+            detected_packs: vec![],
             generated_at: "2026-01-01T00:00:00Z".into(),
             executive_summary: "test".into(),
             policy: policy::evaluate(&findings),
@@ -258,6 +303,7 @@ mod tests {
                     reason: "unknown maps_to".into(),
                 }],
                 not_applicable_rules: vec![],
+                unscored_rules: vec![],
             },
         };
         let md = render_markdown(&report);

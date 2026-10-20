@@ -18,6 +18,10 @@ pub struct EvidenceReport {
     pub checkout_path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_uri: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub commit_sha: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub branch: Option<String>,
     pub generated_at: String,
     pub executive_summary: String,
     pub repository_evidence: RepositoryEvidenceMeta,
@@ -87,9 +91,15 @@ impl EvidenceReport {
             apo_version: env!("CARGO_PKG_VERSION").to_string(),
             analyzer: "repository-evidence".into(),
             repository: workspace.label.clone(),
-            checkout_path: Some(ctx.root.display().to_string()),
+            checkout_path: if workspace.source_uri.is_some() {
+                None
+            } else {
+                Some(ctx.root.display().to_string())
+            },
             source_uri: workspace.source_uri.clone(),
-            generated_at: chrono::Utc::now().to_rfc3339(),
+            commit_sha: ctx.git.head_id.clone(),
+            branch: ctx.git.branch.clone(),
+            generated_at: crate::report::timestamp_secs(),
             executive_summary,
             repository_evidence: RepositoryEvidenceMeta {
                 label: workspace.label.clone(),

@@ -15,11 +15,11 @@ pub use config_file::{
     ToolingOverlay,
 };
 pub use def::{PackDef, PackKind, ToolingDef};
-pub use dump::{dump_builtin_packs, pack_to_toml};
+pub use dump::{dump_builtin_packs, pack_to_toml, pack_to_toml_by_id};
 pub use external::{DEFAULT_PACKS_SUBDIR, load_external_packs, load_packs_from_dir};
 pub use resolve::{
-    MapsTo, ResolvedTooling, SkippedToolingNote, ToolingEntry, active_pack_ids, merge_pack_catalog,
-    resolve_tooling,
+    DetectedPack, MapsTo, ResolvedTooling, SkippedToolingNote, ToolingEntry, active_pack_ids,
+    merge_pack_catalog, resolve_tooling,
 };
 
 use crate::discovery::RepoContext;

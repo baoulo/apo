@@ -66,7 +66,16 @@ pub struct Report {
     /// Original remote URI when analysis cloned a remote.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_uri: Option<String>,
-    /// ISO-8601 generation timestamp.
+    /// HEAD commit scanned, when git metadata is available.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub commit_sha: Option<String>,
+    /// Branch name at HEAD, when known.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub branch: Option<String>,
+    /// Packs that matched this repository.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub detected_packs: Vec<crate::packs::DetectedPack>,
+    /// ISO-8601 generation timestamp (second precision).
     pub generated_at: String,
     /// Executive summary text.
     pub executive_summary: String,
@@ -118,6 +127,11 @@ impl Report {
         transparency
             .skipped_tooling
             .clone_from(&ctx.tooling.skipped_tooling);
+        transparency.unscored_rules = findings
+            .iter()
+            .filter(|f| crate::policy::is_unscored_alias(&f.rule))
+            .map(|f| f.rule.clone())
+            .collect();
         transparency.sort();
 
         let mut executive_summary = format!(
@@ -140,7 +154,11 @@ impl Report {
         let missing_controls = policy.gaps.clone();
         let recommendations = policy.recommendations.clone();
 
-        let checkout_path = Some(ctx.root.display().to_string());
+        let checkout_path = if workspace.source_uri.is_some() {
+            None
+        } else {
+            Some(ctx.root.display().to_string())
+        };
 
         Self {
             apo_version: env!("CARGO_PKG_VERSION").to_string(),
@@ -148,7 +166,10 @@ impl Report {
             repository: workspace.label.clone(),
             checkout_path,
             source_uri: workspace.source_uri.clone(),
-            generated_at: chrono::Utc::now().to_rfc3339(),
+            commit_sha: ctx.git.head_id.clone(),
+            branch: ctx.git.branch.clone(),
+            detected_packs: ctx.tooling.detected_packs.clone(),
+            generated_at: timestamp_secs(),
             executive_summary,
             policy,
             findings,
@@ -248,4 +269,9 @@ pub fn write_report(
         written.push(path);
     }
     Ok(written)
+}
+
+/// UTC timestamp at second precision.
+pub fn timestamp_secs() -> String {
+    chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
 }

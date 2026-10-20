@@ -26,6 +26,22 @@ fn main() -> ExitCode {
 
     if let Commands::Packs { command } = &cli.command {
         return match command {
+            PacksCommands::List => {
+                for (id, kind) in apo::packs::catalog_ids() {
+                    println!("{id}\t{kind}");
+                }
+                ExitCode::SUCCESS
+            }
+            PacksCommands::Show { id } => match apo::packs::pack_to_toml_by_id(id) {
+                Ok(text) => {
+                    print!("{text}");
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("error: {e}");
+                    ExitCode::FAILURE
+                }
+            },
             PacksCommands::Dump { output, id } => match dump_builtin_packs(output, id.as_deref()) {
                 Ok(written) => {
                     eprintln!("apo: dumped {} built-in pack(s)", written.len());
@@ -150,7 +166,7 @@ fn main() -> ExitCode {
                     if let Some(score) = pack.hygiene.policy.overall_score {
                         if score < threshold {
                             eprintln!(
-                                "error: hygiene score {score:.1} is below --fail-on-score {threshold}"
+                                "error: hygiene score {score:.1} is below --fail-on-score {threshold} (threshold chosen by the caller; for a legacy repo, start from its current score)"
                             );
                             return ExitCode::FAILURE;
                         }

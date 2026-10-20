@@ -24,6 +24,8 @@ pub struct StaticPackDef {
 pub struct StaticToolingDef {
     pub id: &'static str,
     pub maps_to: MapsTo,
+    /// Additional hygiene rules this tooling also feeds.
+    pub also_maps_to: &'static [MapsTo],
     pub configs: &'static [&'static str],
     pub ci_commands: &'static [&'static str],
 }
@@ -33,6 +35,16 @@ macro_rules! tool {
         StaticToolingDef {
             id: $id,
             maps_to: $maps,
+            also_maps_to: &[],
+            configs: &[$($c),*],
+            ci_commands: &[$($ci),*],
+        }
+    };
+    ($id:literal, $maps:expr, also: [$($also:expr),* $(,)?], configs: [$($c:literal),* $(,)?], ci: [$($ci:literal),* $(,)?]) => {
+        StaticToolingDef {
+            id: $id,
+            maps_to: $maps,
+            also_maps_to: &[$($also),*],
             configs: &[$($c),*],
             ci_commands: &[$($ci),*],
         }
@@ -86,8 +98,8 @@ static PACKS: &[StaticPackDef] = &[
             tool!("docs", MapsTo::DocTooling, configs: [], ci: ["cargo doc"]),
             tool!("static", MapsTo::StaticAnalysisCi, configs: [], ci: ["cargo clippy", "cargo deny"]),
             tool!("types_ci", MapsTo::TypeCheckingCi, configs: [], ci: ["cargo check", "cargo build"]),
-            tool!("property", MapsTo::PropertyTesting, configs: [], ci: ["proptest", "cargo test"]),
-            tool!("integration", MapsTo::IntegrationTesting, configs: [], ci: ["integration"]),
+            tool!("property", MapsTo::PropertyTesting, configs: [], ci: ["proptest"]),
+            tool!("integration", MapsTo::IntegrationTesting, configs: [], ci: ["test/integration"]),
         ],
     },
     StaticPackDef {
@@ -134,7 +146,7 @@ static PACKS: &[StaticPackDef] = &[
             tool!("types_ci", MapsTo::TypeCheckingCi, configs: [], ci: ["mypy", "pyright"]),
             tool!("static", MapsTo::StaticAnalysisCi, configs: [], ci: ["ruff", "flake8", "pylint", "bandit"]),
             tool!("property", MapsTo::PropertyTesting, configs: ["pyproject.toml"], ci: ["hypothesis", "pytest"]),
-            tool!("integration", MapsTo::IntegrationTesting, configs: [], ci: ["integration", "testcontainers"]),
+            tool!("integration", MapsTo::IntegrationTesting, configs: [], ci: ["testcontainers"]),
         ],
     },
     StaticPackDef {
@@ -230,14 +242,14 @@ static PACKS: &[StaticPackDef] = &[
             tool!("format", MapsTo::Formatter, configs: [".formatter.exs"], ci: ["mix format --check-formatted", "mix format"]),
             tool!("lint", MapsTo::Linter, configs: [".credo.exs"], ci: ["mix credo --strict", "mix credo"]),
             tool!("types", MapsTo::TypeChecker, configs: [".dialyzer_ignore.exs", "dialyzer.exs"], ci: ["mix dialyzer"]),
-            tool!("audit", MapsTo::DependencyScanning, configs: [], ci: ["mix hex.audit", "mix hex.outdated"]),
-            tool!("security", MapsTo::StaticAnalysisCi, configs: [".sobelow-conf", ".sobelow-skips"], ci: ["mix sobelow --config", "mix sobelow"]),
+            tool!("audit", MapsTo::DependencyScanning, configs: [], ci: ["mix hex.audit", "mix hex.outdated", "mix deps.audit"]),
+            tool!("security", MapsTo::StaticAnalysisCi, also: [MapsTo::Sast], configs: [".sobelow-conf", ".sobelow-skips"], ci: ["mix sobelow --config", "mix sobelow"]),
             tool!("compile", MapsTo::TypeCheckingCi, configs: [], ci: ["mix compile --warnings-as-errors", "mix compile"]),
             tool!("test", MapsTo::TestFramework, configs: [], ci: ["mix test"]),
             tool!("doctor", MapsTo::DocTooling, configs: [], ci: ["mix doctor --full", "mix doctor"]),
             tool!("docs", MapsTo::DocTooling, configs: [], ci: ["mix docs --warnings-as-errors", "mix docs"]),
             tool!("property", MapsTo::PropertyTesting, configs: [], ci: ["stream_data", "propcheck"]),
-            tool!("integration", MapsTo::IntegrationTesting, configs: [], ci: ["integration"]),
+            tool!("integration", MapsTo::IntegrationTesting, configs: [], ci: ["test/integration"]),
         ],
     },
     // ——— Tier B ———

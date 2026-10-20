@@ -55,7 +55,7 @@ cargo run -- evidence . --badge-output docs/badges/apo-evidence.svg
 1. Bump version in `Cargo.toml` and add a `CHANGELOG.md` section
 2. Merge to `main`
 3. Ensure the `CARGO_REGISTRY_TOKEN` repository secret is set (crates.io API token)
-4. Tag and push: `git tag v0.2.0 && git push origin v0.2.0`
+4. Tag and push: `git tag v0.3.1 && git push origin v0.3.1`
 5. The Release workflow builds binaries, creates a GitHub Release, and runs `cargo publish`
 
 Manual publish (optional):

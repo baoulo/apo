@@ -27,16 +27,45 @@ struct ExternalPackFile {
     package_json_contains: Vec<String>,
     #[serde(default)]
     tooling: Vec<ExternalTooling>,
+    #[serde(default)]
+    knowledge: Vec<ExternalKnowledge>,
 }
 
 #[derive(Debug, Deserialize)]
 struct ExternalTooling {
     id: String,
-    maps_to: String,
+    maps_to: MapsToField,
     #[serde(default)]
     configs: Vec<String>,
     #[serde(default)]
     ci_commands: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum MapsToField {
+    One(String),
+    Many(Vec<String>),
+}
+
+impl MapsToField {
+    fn ids(&self) -> Vec<&str> {
+        match self {
+            Self::One(id) => vec![id.as_str()],
+            Self::Many(ids) => ids.iter().map(String::as_str).collect(),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct ExternalKnowledge {
+    kind: String,
+    #[serde(default)]
+    content_needles: Vec<String>,
+    #[serde(default)]
+    path_suffixes: Vec<String>,
+    #[serde(default)]
+    exclude_needles: Vec<String>,
 }
 
 impl ExternalPackFile {
@@ -62,21 +91,29 @@ impl ExternalPackFile {
         let mut tooling = Vec::new();
         let mut skipped = Vec::new();
         for t in self.tooling {
-            let Some(maps_to) = MapsTo::from_rule_id(&t.maps_to) else {
-                warn!(
-                    pack = %pack_id,
-                    maps_to = %t.maps_to,
-                    path = %path.display(),
-                    "skipping tooling entry with unknown maps_to"
-                );
-                skipped.push(SkippedToolingNote {
-                    source: pack_id.clone(),
-                    id: t.id,
-                    maps_to: t.maps_to,
-                    reason: format!("unknown maps_to in {}", path.display()),
-                });
+            let mut maps_to = Vec::new();
+            let requested = t.maps_to.ids();
+            for id in &requested {
+                if let Some(mapped) = MapsTo::from_rule_id(id) {
+                    maps_to.push(mapped);
+                } else {
+                    warn!(
+                        pack = %pack_id,
+                        maps_to = %id,
+                        path = %path.display(),
+                        "skipping tooling entry with unknown maps_to"
+                    );
+                    skipped.push(SkippedToolingNote {
+                        source: pack_id.clone(),
+                        id: t.id.clone(),
+                        maps_to: (*id).to_string(),
+                        reason: format!("unknown maps_to in {}", path.display()),
+                    });
+                }
+            }
+            if maps_to.is_empty() {
                 continue;
-            };
+            }
             tooling.push(ToolingDef {
                 id: t.id,
                 maps_to,
@@ -84,6 +121,16 @@ impl ExternalPackFile {
                 ci_commands: t.ci_commands,
             });
         }
+        let knowledge = self
+            .knowledge
+            .into_iter()
+            .map(|k| crate::packs::def::KnowledgeDef {
+                kind: k.kind,
+                content_needles: k.content_needles,
+                path_suffixes: k.path_suffixes,
+                exclude_needles: k.exclude_needles,
+            })
+            .collect();
 
         Ok((
             PackDef {
@@ -94,6 +141,7 @@ impl ExternalPackFile {
                 basename_any: self.basename_any,
                 package_json_contains: self.package_json_contains,
                 tooling,
+                knowledge,
             },
             skipped,
         ))
@@ -202,7 +250,7 @@ ci_commands = ["ameba"]
         assert_eq!(packs[0].id, "crystal");
         assert_eq!(packs[0].kind, PackKind::Language);
         assert_eq!(packs[0].tooling.len(), 1);
-        assert_eq!(packs[0].tooling[0].maps_to, MapsTo::Linter);
+        assert_eq!(packs[0].tooling[0].maps_to, vec![MapsTo::Linter]);
     }
 
     #[test]

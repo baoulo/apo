@@ -24,8 +24,13 @@ drive `knowledge.coverage`:
 | Onboarding | `onboarding` | `onboard`, `getting-started` / `getting_started`, or `contributing*` + doc extension |
 | Glossary | `glossary` | Path contains `glossary`, or `glossary.md` |
 | Prompt library | `prompt_library` | `prompts/`, `.cursor/prompts`, `.github/prompts`, `baoulo/prompts`, or path with `prompt` + doc extension |
+| Changelog | `changelog` | `CHANGELOG`, `RELEASE_NOTES`, or `release_announcement` |
 
-**Coverage score** = (distinct expected kinds present ÷ 9) × 100.
+**Coverage score** = (distinct expected kinds present ÷ 10) × 100.
+
+Filename heuristics for architecture, design, onboarding, and runbooks also apply under `docs/`, `doc/`, `guides/`, `livebook/`, and at the repository root (`overview` → architecture, `memory_model` → design, `guide` / `tutorial` / notebooks → onboarding, `checklist` → runbook). Markdown under `guides/` or `livebook/` that does not match a sharper kind is onboarding. Notebooks (`.livemd`, `.ipynb`, `.Rmd`, `.qmd`) are onboarding wherever they sit.
+
+Active language packs may add inline documentation. The Elixir pack treats `@moduledoc` / `@doc` in `*.ex` (ignoring `@moduledoc false`) as `api`, and `iex>` / `doctest` as onboarding. Those show up as one summary artifact per signal, not one row per module. `mix.exs` `docs: extras:` paths are inventoried when the Elixir pack is active.
 
 ## Also classified (not required for coverage)
 
@@ -40,11 +45,11 @@ do not count toward `kinds_missing`:
 
 ## Doc extensions
 
-Unless noted, “doc extension” means: `.md`, `.mdx`, `.rst`, `.adoc`, `.txt`.
+Unless noted, “doc extension” means: `.md`, `.mdx`, `.rst`, `.adoc`, `.txt`, plus notebooks `.livemd`, `.ipynb`, `.Rmd`, `.qmd`.
 
 ## Freshness
 
-Each artifact gets `days_since_modified` from filesystem mtime when available.
+Each artifact gets `days_since_modified` from the newest git commit that touches the file. `freshness_source` is `git` when that commit is in the fetched history. A shallow clone (remote scans use `--depth` = `commit_sample_limit`) marks files that never appear in the fetched commits as `shallow-bound`, with age at least as old as the oldest fetched commit. Filesystem mtime is used only when git cannot be opened, or for a path that is absent from a full history, and the source is `mtime`.
 
 | Days since modified | Freshness contribution |
 |--------------------:|------------------------|

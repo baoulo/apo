@@ -159,6 +159,143 @@ fn enrich_history(
     }
 }
 
+/// How a path's age was determined.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PathFreshness {
+    pub days: Option<u64>,
+    /// `git`, `mtime`, or `shallow-bound`.
+    pub source: &'static str,
+}
+
+/// Newest commit age for each path. Checkout mtime is used only when git cannot be opened,
+/// or for paths that never appear in a full (non-shallow) history.
+///
+/// A shallow clone marks paths missing from the fetched commits as `shallow-bound`, using the
+/// age of the oldest fetched commit. That is a lower bound, not a checkout timestamp.
+pub fn path_freshness(
+    root: &Path,
+    paths: &[String],
+) -> std::collections::BTreeMap<String, PathFreshness> {
+    let mut out = std::collections::BTreeMap::new();
+    if paths.is_empty() {
+        return out;
+    }
+    if gix::open(root).is_err() {
+        for path in paths {
+            out.insert(
+                path.clone(),
+                PathFreshness {
+                    days: mtime_days(&root.join(path)),
+                    source: "mtime",
+                },
+            );
+        }
+        return out;
+    }
+
+    let shallow = root.join(".git").join("shallow").is_file();
+    let mut wanted: std::collections::BTreeSet<String> = paths.iter().cloned().collect();
+    let mut oldest: Option<i64> = None;
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or(Duration::ZERO)
+        .as_secs() as i64;
+
+    if let Some(parsed) = git_log_name_times(root) {
+        oldest = parsed.oldest;
+        for (path, ts) in parsed.newest {
+            if !wanted.contains(&path) {
+                continue;
+            }
+            wanted.remove(&path);
+            out.insert(
+                path,
+                PathFreshness {
+                    days: days_between(now, ts),
+                    source: "git",
+                },
+            );
+        }
+    }
+
+    let bound = oldest.and_then(|ts| days_between(now, ts));
+    for path in wanted {
+        if shallow {
+            out.insert(
+                path,
+                PathFreshness {
+                    days: bound,
+                    source: "shallow-bound",
+                },
+            );
+        } else {
+            out.insert(
+                path.clone(),
+                PathFreshness {
+                    days: mtime_days(&root.join(&path)),
+                    source: "mtime",
+                },
+            );
+        }
+    }
+    out
+}
+
+struct GitLogTimes {
+    newest: std::collections::BTreeMap<String, i64>,
+    oldest: Option<i64>,
+}
+
+fn git_log_name_times(root: &Path) -> Option<GitLogTimes> {
+    let output = std::process::Command::new("git")
+        .args(["-C"])
+        .arg(root)
+        .args(["log", "--pretty=format:%ct", "--name-only"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let text = String::from_utf8_lossy(&output.stdout);
+    let mut newest = std::collections::BTreeMap::new();
+    let mut oldest = None;
+    let mut current: Option<i64> = None;
+    for line in text.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        if line.bytes().all(|b| b.is_ascii_digit()) && line.len() >= 9 {
+            if let Ok(ts) = line.parse::<i64>() {
+                current = Some(ts);
+                oldest = Some(oldest.map_or(ts, |o: i64| o.min(ts)));
+                continue;
+            }
+        }
+        if let Some(ts) = current
+            && !newest.contains_key(line)
+        {
+            newest.insert(line.to_string(), ts);
+        }
+    }
+    Some(GitLogTimes { newest, oldest })
+}
+
+fn days_between(now: i64, ts: i64) -> Option<u64> {
+    if ts > 0 && now >= ts {
+        Some(((now - ts) as u64) / 86_400)
+    } else {
+        None
+    }
+}
+
+fn mtime_days(path: &Path) -> Option<u64> {
+    let modified = std::fs::metadata(path).ok()?.modified().ok()?;
+    let now = SystemTime::now();
+    let dur = now.duration_since(modified).ok()?;
+    Some(dur.as_secs() / 86_400)
+}
+
 /// Map gix errors into APO errors when a hard failure is required.
 #[allow(dead_code)]
 pub fn map_err(err: impl std::fmt::Display) -> Error {

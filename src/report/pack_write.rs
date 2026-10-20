@@ -30,6 +30,12 @@ pub fn render_pack_markdown(pack: &EvidencePack) -> String {
         "- **Schema:** `{}`\n- **APO:** {}\n- **Repository:** `{}`\n- **Generated:** {}\n\n",
         pack.evidence_schema, pack.apo_version, pack.repository, pack.generated_at
     ));
+    if let Some(sha) = &pack.commit_sha {
+        out.push_str(&format!("- **Commit:** `{sha}`\n"));
+    }
+    if let Some(branch) = &pack.branch {
+        out.push_str(&format!("- **Branch:** `{branch}`\n"));
+    }
     out.push_str("## Executive summary\n\n");
     out.push_str(&pack.executive_summary);
     out.push_str("\n\n");

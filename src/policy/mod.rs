@@ -48,6 +48,14 @@ pub struct PolicyResult {
 }
 
 /// Numeric weight for a status. Rules produce evidence; policy assigns weight.
+/// Reported findings that must not move the category average.
+///
+/// `documentation.security` and `documentation.codeowners` repeat
+/// `security.policy` and `collaboration.codeowners`.
+pub fn is_unscored_alias(rule: &str) -> bool {
+    matches!(rule, "documentation.security" | "documentation.codeowners")
+}
+
 fn status_weight(status: Status) -> Option<f64> {
     match status {
         Status::Enforced => Some(100.0),
@@ -82,6 +90,9 @@ pub fn evaluate(findings: &[Finding]) -> PolicyResult {
         let mut not_applicable = 0;
 
         for f in &list {
+            if is_unscored_alias(&f.rule) {
+                continue;
+            }
             match f.status {
                 Status::Enforced => enforced += 1,
                 Status::Present => present += 1,

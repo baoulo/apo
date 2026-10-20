@@ -41,6 +41,7 @@ pub enum MapsTo {
     PropertyTesting,
     IntegrationTesting,
     UiTesting,
+    Sast,
 }
 
 impl MapsTo {
@@ -58,6 +59,7 @@ impl MapsTo {
             Self::PropertyTesting => "testing.property",
             Self::IntegrationTesting => "testing.integration",
             Self::UiTesting => "testing.ui",
+            Self::Sast => "security.sast",
         }
     }
 
@@ -75,6 +77,7 @@ impl MapsTo {
             "testing.property" => Some(Self::PropertyTesting),
             "testing.integration" => Some(Self::IntegrationTesting),
             "testing.ui" => Some(Self::UiTesting),
+            "security.sast" => Some(Self::Sast),
             _ => None,
         }
     }
@@ -90,11 +93,31 @@ pub struct ToolingEntry {
     pub ci_commands: Vec<String>,
 }
 
+/// A pack that matched this repository, and why.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DetectedPack {
+    pub id: String,
+    pub triggers: Vec<String>,
+    pub tooling: Vec<String>,
+}
+
+/// Inline knowledge markers copied from active packs.
+#[derive(Debug, Clone)]
+pub struct ActiveKnowledge {
+    pub pack_id: String,
+    pub kind: String,
+    pub content_needles: Vec<String>,
+    pub path_suffixes: Vec<String>,
+    pub exclude_needles: Vec<String>,
+}
+
 /// Resolved tooling for a repository analysis.
 #[derive(Debug, Clone, Default)]
 pub struct ResolvedTooling {
     pub active_packs: Vec<String>,
+    pub detected_packs: Vec<DetectedPack>,
     pub entries: Vec<ToolingEntry>,
+    pub knowledge: Vec<ActiveKnowledge>,
     /// Built-in pack ids replaced by external packs.
     pub overridden_packs: Vec<String>,
     /// Tooling entries skipped (e.g. unknown maps_to).
@@ -180,23 +203,37 @@ pub fn active_pack_ids(
 }
 
 fn pack_matches(ctx: &RepoContext, pack: &PackDef) -> bool {
+    !pack_triggers(ctx, pack).is_empty()
+}
+
+fn pack_triggers(ctx: &RepoContext, pack: &PackDef) -> Vec<String> {
+    let mut triggers = Vec::new();
     for m in &pack.manifests {
         if ctx.has_file(m) {
-            return true;
+            triggers.push(m.clone());
+        }
+        let manifest_name = std::path::Path::new(m)
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or(m);
+        for entry in ctx.inventory.find_by_basenames(&[manifest_name]) {
+            if entry.relative != *m {
+                triggers.push(entry.relative.clone());
+            }
         }
     }
     for needle in &pack.path_contains {
-        if !ctx.inventory.find_path_contains(needle).is_empty() {
-            return true;
+        if let Some(hit) = ctx.inventory.find_path_contains(needle).first() {
+            triggers.push(hit.relative.clone());
         }
     }
     for basename in &pack.basename_any {
-        if !ctx
+        if let Some(hit) = ctx
             .inventory
             .find_by_basenames(&[basename.as_str()])
-            .is_empty()
+            .first()
         {
-            return true;
+            triggers.push(hit.relative.clone());
         }
     }
     if !pack.package_json_contains.is_empty()
@@ -208,10 +245,12 @@ fn pack_matches(ctx: &RepoContext, pack: &PackDef) -> bool {
             .iter()
             .any(|n| lower.contains(&n.to_ascii_lowercase()))
         {
-            return true;
+            triggers.push("package.json".into());
         }
     }
-    false
+    triggers.sort();
+    triggers.dedup();
+    triggers
 }
 
 /// Resolve built-in + external packs + `.apo.toml` overlays into tooling entries.
@@ -224,20 +263,44 @@ pub fn resolve_tooling(
     let (catalog, overridden_packs) = merge_pack_catalog(external);
     let active = active_pack_ids(ctx, config, &catalog);
     let mut entries = Vec::new();
+    let mut detected_packs = Vec::new();
+    let mut knowledge = Vec::new();
 
     for pack in &catalog {
         if !active.iter().any(|id| id == &pack.id) {
             continue;
         }
+        let mut triggers = pack_triggers(ctx, pack);
+        if triggers.is_empty() {
+            triggers.push("forced".into());
+        }
+        let mut tooling_ids = Vec::new();
         for t in &pack.tooling {
-            entries.push(ToolingEntry {
-                id: format!("{}.{}", pack.id, t.id),
+            tooling_ids.push(format!("{}.{}", pack.id, t.id));
+            for maps_to in &t.maps_to {
+                entries.push(ToolingEntry {
+                    id: format!("{}.{}", pack.id, t.id),
+                    pack_id: pack.id.clone(),
+                    maps_to: *maps_to,
+                    configs: t.configs.clone(),
+                    ci_commands: t.ci_commands.clone(),
+                });
+            }
+        }
+        for signal in &pack.knowledge {
+            knowledge.push(ActiveKnowledge {
                 pack_id: pack.id.clone(),
-                maps_to: t.maps_to,
-                configs: t.configs.clone(),
-                ci_commands: t.ci_commands.clone(),
+                kind: signal.kind.clone(),
+                content_needles: signal.content_needles.clone(),
+                path_suffixes: signal.path_suffixes.clone(),
+                exclude_needles: signal.exclude_needles.clone(),
             });
         }
+        detected_packs.push(DetectedPack {
+            id: pack.id.clone(),
+            triggers,
+            tooling: tooling_ids,
+        });
     }
 
     if let Some(cfg) = config {
@@ -264,9 +327,13 @@ pub fn resolve_tooling(
 
     skipped_tooling.sort_by(|a, b| (&a.source, &a.id).cmp(&(&b.source, &b.id)));
 
+    detected_packs.sort_by(|a, b| a.id.cmp(&b.id));
+
     Ok(ResolvedTooling {
         active_packs: active,
+        detected_packs,
         entries,
+        knowledge,
         overridden_packs,
         skipped_tooling,
     })
@@ -288,10 +355,11 @@ mod tests {
             package_json_contains: vec![],
             tooling: vec![ToolingDef {
                 id: "lint".into(),
-                maps_to: MapsTo::Linter,
+                maps_to: vec![MapsTo::Linter],
                 configs: vec!["custom-clippy.toml".into()],
                 ci_commands: vec![],
             }],
+            knowledge: vec![],
         }];
         let (merged, overridden) = merge_pack_catalog(external);
         assert_eq!(overridden, vec!["rust".to_string()]);
@@ -312,6 +380,7 @@ mod tests {
             basename_any: vec![],
             package_json_contains: vec![],
             tooling: vec![],
+            knowledge: vec![],
         }];
         let (_merged, overridden) = merge_pack_catalog(external);
         assert!(overridden.is_empty());

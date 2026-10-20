@@ -28,7 +28,7 @@ pub struct Cli {
 /// Top-level commands.
 #[derive(Debug, Subcommand)]
 pub enum Commands {
-    /// Analyze repository hygiene evidence (v0.1).
+    /// Analyze repository hygiene evidence.
     Analyze {
         /// Local repository path or remote Git URI
         /// (https://…, git@…, ssh://…, file://…).
@@ -59,7 +59,7 @@ pub enum Commands {
         badge_output: Option<PathBuf>,
     },
 
-    /// Analyze knowledge + AI evidence (v0.2).
+    /// Analyze knowledge + AI evidence.
     Evidence {
         /// Local repository path or remote Git URI.
         #[arg(default_value = ".")]
@@ -101,7 +101,7 @@ pub enum Commands {
         ollama_model: String,
     },
 
-    /// Unified hygiene + knowledge + AI evidence pack (v0.3).
+    /// Unified hygiene + knowledge + AI evidence pack.
     #[command(visible_alias = "all")]
     Report {
         /// Local repository path or remote Git URI.
@@ -187,6 +187,13 @@ pub enum Commands {
 /// Subcommands under `apo packs`.
 #[derive(Debug, Subcommand)]
 pub enum PacksCommands {
+    /// List built-in pack ids.
+    List,
+    /// Print one built-in pack as TOML.
+    Show {
+        /// Built-in pack id.
+        id: String,
+    },
     /// Write built-in packs as external TOML files (`{id}.toml`).
     ///
     /// Useful for inspection or as a starting point: place a dumped file under

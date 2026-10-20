@@ -31,6 +31,12 @@ pub fn render_evidence_markdown(report: &EvidenceReport) -> String {
     if let Some(uri) = &report.source_uri {
         let _ = writeln!(out, "- **Source URI:** `{uri}`");
     }
+    if let Some(sha) = &report.commit_sha {
+        let _ = writeln!(out, "- **Commit:** `{sha}`");
+    }
+    if let Some(branch) = &report.branch {
+        let _ = writeln!(out, "- **Branch:** `{branch}`");
+    }
     let _ = writeln!(out, "- **Generated:** {}", report.generated_at);
     let _ = writeln!(
         out,
@@ -77,6 +83,13 @@ pub fn render_evidence_markdown(report: &EvidenceReport) -> String {
         "- **Broken local links:** {}",
         report.knowledge.broken_links.len()
     );
+    for link in &report.knowledge.broken_links {
+        let _ = writeln!(
+            out,
+            "  - `{}` → `{}` ({})",
+            link.source, link.target, link.detail
+        );
+    }
     let _ = writeln!(
         out,
         "- **Graph:** {} nodes, {} edges",

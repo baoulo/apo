@@ -166,7 +166,7 @@ pub(crate) mod helpers {
             let matched: Vec<&str> = needles
                 .iter()
                 .copied()
-                .filter(|n| lower.contains(&n.to_ascii_lowercase()))
+                .filter(|n| contains_token(&lower, &n.to_ascii_lowercase()))
                 .collect();
             if !matched.is_empty() {
                 items.push(EvidenceItem::path_detail(
@@ -210,9 +210,39 @@ pub(crate) mod helpers {
             }
         }
 
-        items.sort_by(|a, b| a.path.cmp(&b.path));
-        items.dedup();
+        dedup_evidence_by_path(&mut items);
         items
+    }
+
+    fn contains_token(haystack: &str, needle: &str) -> bool {
+        if needle.is_empty() {
+            return false;
+        }
+        let bytes = haystack.as_bytes();
+        let mut start = 0;
+        while let Some(pos) = haystack[start..].find(needle) {
+            let abs = start + pos;
+            let before_ok = abs == 0 || !is_token_char(bytes[abs - 1]);
+            let after = abs + needle.len();
+            let after_ok = after >= bytes.len() || !is_token_char(bytes[after]);
+            if before_ok && after_ok {
+                return true;
+            }
+            start = abs + needle.len().max(1);
+            if start > haystack.len() {
+                break;
+            }
+        }
+        false
+    }
+
+    fn is_token_char(b: u8) -> bool {
+        b.is_ascii_alphanumeric() || b == b'_' || b == b'.' || b == b'/' || b == b'-'
+    }
+
+    fn dedup_evidence_by_path(items: &mut Vec<EvidenceItem>) {
+        items.sort_by(|a, b| a.path.cmp(&b.path).then(a.detail.cmp(&b.detail)));
+        items.dedup_by(|a, b| a.path.is_some() && a.path == b.path);
     }
 
     /// Find config files by basename list.
@@ -242,8 +272,7 @@ pub(crate) mod helpers {
     ) -> Finding {
         let mut items = pack_evidence(ctx, maps_to);
         items.extend(legacy_items);
-        items.sort_by(|a, b| a.path.cmp(&b.path));
-        items.dedup();
+        dedup_evidence_by_path(&mut items);
 
         if items.is_empty() {
             return Finding::builder(rule, category)

@@ -4,7 +4,7 @@
 directories, and CI/script text. It does **not** run formatters, linters, tests,
 or forge APIs to produce scores.
 
-There are **39 rules** in **6** weighted categories (`apo-hygiene-v0.1`). Language
+There are **40 rules** in **6** weighted categories (`apo-hygiene-v0.1`). Two of them are reported aliases and do not affect the score: `documentation.security` (scoring copy: `security.policy`) and `documentation.codeowners` (scoring copy: `collaboration.codeowners`). Language
 and web **packs** only contribute config/CI needles into existing rule ids (for
 example formatters, linters, and `documentation.doc_tooling`).
 
@@ -28,12 +28,12 @@ measured](../README.md#what-gets-measured) section.
 |---------|-------------------|
 | `documentation.readme` | `README.md` (or common variants). **Enforced** if content mentions quickstart/install/usage-style keywords. |
 | `documentation.contributing` | `CONTRIBUTING.md` (root, `.github/`, or `docs/`). |
-| `documentation.security` | `SECURITY.md` (root, `.github/`, or `docs/`). |
+| `documentation.security` | `SECURITY.md` (root, `.github/`, or `docs/`). Reported for visibility; the scoring copy is `security.policy`. |
 | `documentation.license` | `LICENSE` / `LICENCE` / `COPYING` (and common extensions). |
 | `documentation.architecture` | `ARCHITECTURE.md`, `DESIGN.md`, or docs paths containing “architecture”. |
 | `documentation.adrs` | ADR directories (`docs/adr`, `adr`, …) or ADR markdown files. |
 | `documentation.runbooks` | Paths/dirs containing “runbook”. |
-| `documentation.codeowners` | `CODEOWNERS` (root, `.github/`, `docs/`, `.gitlab/`). |
+| `documentation.codeowners` | `CODEOWNERS` (root, `.github/`, `docs/`, `.gitlab/`). Reported for visibility; the scoring copy is `collaboration.codeowners`. |
 | `documentation.issue_templates` | `.github/ISSUE_TEMPLATE/` or issue template files. |
 | `documentation.pr_templates` | Pull request template files (e.g. `.github/pull_request_template.md`). |
 | `documentation.doc_tooling` | Docs quality gates from language packs (e.g. `mix doctor`, `mix docs --warnings-as-errors`, `cargo doc`). |
@@ -60,7 +60,7 @@ measured](../README.md#what-gets-measured) section.
 | `testing.static_analysis_ci` | Linters/SAST invoked in CI (Clippy, ESLint, Ruff, CodeQL, Semgrep, Sonar, …). |
 | `testing.type_checking_ci` | Typecheck/compile steps in CI (`tsc`, MyPy, `cargo check`/`build`, `go build`/`vet`, …). |
 | `testing.property` | Property-based testing (proptest, Hypothesis, QuickCheck, StreamData, PropEr, fast-check, …) in manifests, CI, or `prop_*` / `*_property_test.*` files. |
-| `testing.integration` | Integration test dirs (`tests/integration`, …), `*_integration_test.*`, Testcontainers/Cucumber, or CI jobs mentioning integration. |
+| `testing.integration` | Integration test dirs (`tests/integration`, …), `*_integration_test.*`, or Testcontainers/Cucumber in CI. A bare `integration` substring in workflow text is not enough. |
 | `testing.ui` | When a UI/web ecosystem is present (React/Vue/Next, Playwright/Cypress, …): UI/E2E signals. **NotApplicable** when no UI ecosystem is detected. |
 
 ## 4. Security & Supply Chain (15%)
@@ -69,6 +69,7 @@ measured](../README.md#what-gets-measured) section.
 |---------|-------------------|
 | `security.dependency_scanning` | Audit/deny configs or CI steps (`cargo audit`/`deny`, `npm audit`, Snyk, OSV, Trivy, CodeQL paths, …). |
 | `security.secret_scanning` | Gitleaks / TruffleHog / detect-secrets configs or CI mentions; `.secrets.baseline`. |
+| `security.sast` | A security-focused static analysis command is configured or mentioned in CI (`mix sobelow`, bandit, gosec, brakeman). This records that the tool is wired. apo does not scan for vulnerabilities. |
 | `security.policy` | Security policy document (`SECURITY.md`, etc.) — scored in the security category. |
 | `security.dependency_updates` | Dependabot or Renovate configuration. |
 
@@ -89,7 +90,7 @@ measured](../README.md#what-gets-measured) section.
 | `collaboration.issue_linkage` | Issue refs in commit messages (`#123`, `PROJ-1`) and/or PR templates that ask for issue linkage. |
 | `collaboration.codeowners` | Same CODEOWNERS paths as documentation, scored under collaboration. |
 | `collaboration.review_configuration` | PR templates, CODEOWNERS, settings-as-code, or auto-assign/reviewer configs. |
-| `collaboration.maintenance_activity` | Age of latest commit from Git history: ≤30 days **Enforced**, ≤90 **Present**, ≤180 **Partial**, older **Missing**. **Unknown** if the repo has no commits or Git metadata is unavailable. |
+| `collaboration.maintenance_activity` | Age of latest commit from Git history: ≤30 days **Enforced**, ≤90 **Present**. Older than 90 days is **NotApplicable** (quiet history is not a missing control; the repository may be finished or inactive). **Unknown** if the repo has no commits or Git metadata is unavailable. |
 
 ## Disabling rules
 
